@@ -1,0 +1,10 @@
+# Optional variant: prepare model + projector with tools.fetch_weights first.
+# Build the normal Dockerfile as chameleon-core before building this file.
+FROM chameleon-core
+COPY requirements-vlm.txt .
+RUN pip install --no-cache-dir -r requirements-vlm.txt
+COPY models/ /app/models/
+ENV CHAMELEON_VLM_MODEL=/app/models/model.gguf
+ENV CHAMELEON_VLM_MMPROJ=/app/models/mmproj.gguf
+# Disabled until model whitelist, size cap and quality checks are satisfied.
+ENV CHAMELEON_VLM=0
