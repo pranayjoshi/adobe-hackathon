@@ -1,0 +1,131 @@
+{
+  "schema_version": 1,
+  "suite_id": "controller-visual-v1",
+  "created_date": "2026-10-25",
+  "path_base": "repository_root",
+  "status": "planned_not_executed",
+  "interpretations": {
+    "layer_3": "Level 3 advanced sample",
+    "create": "Crello editable designs"
+  },
+  "expected_cases_per_arm": 16,
+  "sources": [
+    {
+      "id": "level3",
+      "path": "input/chameleon_sample_level3_advanced.json",
+      "sha256": "fd99e3972c9c11c506d98897f3cb9520a5caea10b358d30e6853b9efca58cf33",
+      "source_field": "source",
+      "source_canvas": {
+        "width": 1080,
+        "height": 1350
+      },
+      "element_count": 17,
+      "embedded_target_policy": "ignore",
+      "evaluation_role": "development_regression_only",
+      "training_allowed": false
+    },
+    {
+      "id": "crello-gym",
+      "path": "output/crello/designs/b44ab672801fd912f6c2.json",
+      "sha256": "230579dac39e11575fec41c825d729bac167d73a542dae3299ffd710bf541a0b",
+      "source_field": "source",
+      "source_canvas": {
+        "width": 1190,
+        "height": 1683
+      },
+      "element_count": 14,
+      "embedded_target_policy": "ignore",
+      "evaluation_role": "development_regression_only",
+      "training_allowed": false,
+      "catalog_id": "b44ab672801fd912f6c2",
+      "title": "Gym Promotion with Man Lifting Barbell",
+      "dataset": "cyberagent/crello",
+      "dataset_revision": "7997e2f434ee4aa73cf4cdf22c5954cb175872e1",
+      "source_id": "5dd7b76a9fea0cc374cc080a",
+      "catalog_status_at_plan_time": "ready",
+      "reference_path": "output/crello/media/b44ab672801fd912f6c2-reference.jpg"
+    },
+    {
+      "id": "crello-beauty",
+      "path": "output/crello/designs/d958006f854dabe45ada.json",
+      "sha256": "ed70adbf3912b95205f1364b4ac72654df2bc96ff2971f96cfe32c8017188bd6",
+      "source_field": "source",
+      "source_canvas": {
+        "width": 595,
+        "height": 842
+      },
+      "element_count": 20,
+      "embedded_target_policy": "ignore",
+      "evaluation_role": "development_regression_only",
+      "training_allowed": false,
+      "catalog_id": "d958006f854dabe45ada",
+      "title": "Beauty Store services on Geometric Abstraction",
+      "dataset": "cyberagent/crello",
+      "dataset_revision": "7997e2f434ee4aa73cf4cdf22c5954cb175872e1",
+      "source_id": "5ef30fa9499b85dcc73cb20e",
+      "catalog_status_at_plan_time": "ready",
+      "reference_path": "output/crello/media/d958006f854dabe45ada-reference.jpg"
+    },
+    {
+      "id": "crello-origami",
+      "path": "output/crello/designs/f1cbff73226eeb998ad9.json",
+      "sha256": "65cd40b397edf7b49b7f3a1d2c80768695d6674395ddfaf062690ba85c8b91f4",
+      "source_field": "source",
+      "source_canvas": {
+        "width": 336,
+        "height": 280
+      },
+      "element_count": 12,
+      "embedded_target_policy": "ignore",
+      "evaluation_role": "development_regression_only",
+      "training_allowed": false,
+      "catalog_id": "f1cbff73226eeb998ad9",
+      "title": "Origami Classes Invitation Paper Bird in Red",
+      "dataset": "cyberagent/crello",
+      "dataset_revision": "7997e2f434ee4aa73cf4cdf22c5954cb175872e1",
+      "source_id": "58891e5c95a7a863ddcc2f4b",
+      "catalog_status_at_plan_time": "ready",
+      "reference_path": "output/crello/media/f1cbff73226eeb998ad9-reference.jpg"
+    }
+  ],
+  "formats": [
+    {
+      "id": "leaderboard",
+      "width": 728,
+      "height": 90
+    },
+    {
+      "id": "linkedin-banner",
+      "width": 1584,
+      "height": 396
+    },
+    {
+      "id": "wide-skyscraper",
+      "width": 160,
+      "height": 600
+    },
+    {
+      "id": "youtube-thumbnail",
+      "width": 1280,
+      "height": 720
+    }
+  ],
+  "render_policy": {
+    "renderer": "official_only",
+    "final_resolution": "native_target",
+    "save_all_actual_iteration_renders": true,
+    "missing_resource_policy": "explicit_failure_no_substitution"
+  },
+  "resource_policy": {
+    "capture_asset_and_font_hashes": "required_at_preflight",
+    "exact_font_faces": "required",
+    "source_reconstruction_review": "required",
+    "network_downloads_during_run": false
+  },
+  "artifact_root": "output/agent-benefits",
+  "notes": [
+    "Resource/font availability has not been certified by generating this manifest.",
+    "Four source families are a development regression panel, not statistical proof of generalization.",
+    "Freeze resources, configurations and code identity before baseline capture."
+  ]
+}
