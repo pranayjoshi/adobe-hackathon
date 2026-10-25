@@ -1,0 +1,3 @@
+-r requirements-dev.txt
+# Tier 3 AI judge (evaluation/judge.py --backend claude). Development only; the runtime stays offline.
+anthropic>=2.2,<3

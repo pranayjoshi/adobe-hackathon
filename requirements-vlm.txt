@@ -1,0 +1,3 @@
+-r requirements.txt
+# Optional native build; enable only with allowed, locally available weights.
+llama-cpp-python==0.3.36

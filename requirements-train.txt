@@ -1,0 +1,9 @@
+-r requirements.txt
+# Model training only; never installed in the submission image.
+torch>=2.4
+transformers>=4.56
+trl>=0.23
+peft>=0.17
+datasets>=3.0
+accelerate>=1.0
+torchvision>=0.19
