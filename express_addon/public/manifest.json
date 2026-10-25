@@ -1,0 +1,1 @@
+{"testId":"744f0c15-6807-40a9-97fa-78e777ca581e","name":"Chameleon","version":"0.2.0","manifestVersion":2,"requirements":{"apps":[{"name":"Express","apiVersion":1}]},"entryPoints":[{"type":"panel","id":"chameleon","main":"index.html","documentSandbox":"sandbox.js","permissions":{"sandbox":["allow-downloads"]}}]}

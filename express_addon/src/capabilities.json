@@ -1,0 +1,20 @@
+{
+  "adapter_version": "express-editable-v1",
+  "host_verified": false,
+  "host_version": null,
+  "document_import": false,
+  "editable_types": ["text", "image", "shape"],
+  "shape_types": ["rectangle", "ellipse"],
+  "common_fields": ["id", "type", "x", "y", "width", "height", "rotation", "opacity", "z_index", "group_id"],
+  "text_fields": ["content", "font_family", "font_size", "font_weight", "font_style", "color", "text_align", "line_height", "letter_spacing", "max_lines", "style_runs", "capitalize"],
+  "image_fields": ["asset_id", "fit"],
+  "shape_fields": ["shape_type", "fill_color", "stroke_color", "stroke_width", "corner_radius"],
+  "unsupported": ["groups", "rich_text", "letter_spacing", "stroke", "corner_radius", "custom_line_height", "max_lines", "capitalize"],
+  "units": {"geometry": "pixels", "font_size": "points", "font_px_to_points": 0.75, "font_calibration": "host-unverified"},
+  "rotation": "clockwise degrees around element center; host-unverified",
+  "stacking": "stable z_index then document order",
+  "image_fit": "prepared PNG appearance; canonical original asset remains separate; original crop editing not preserved",
+  "identity": "external canonical-id to host-node-id mapping scoped to created page",
+  "recovery": "remove newly created page on failure; Undo if host cleanup fails",
+  "verification": "contract-tested; live glyph, font-unit, wrapping, rotation and image parity pending"
+}
