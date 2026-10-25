@@ -1,0 +1,40 @@
+{
+  "datasets": {
+    "cyberagent/crello": "7997e2f434ee4aa73cf4cdf22c5954cb175872e1",
+    "Tony1109/DesignAsCode-training-data": "3bb781520d11d766f71405374c4b640f110b7bf2"
+  },
+  "training_shards": [
+    0,
+    1
+  ],
+  "designs": 1256,
+  "labels": {
+    "background": 1855,
+    "image": 490,
+    "cta": 506,
+    "decoration": 1871,
+    "body": 113,
+    "badge": 483,
+    "headline": 856,
+    "legal": 434,
+    "subhead": 377,
+    "hero": 62,
+    "logo": 112
+  },
+  "label_kind": "machine-distilled themes mapped by keyword; not human labels",
+  "units": "Crello v5 pixels; font family unused by classifier",
+  "split": "All source data from Crello train; train_roles holds out exact-copy families",
+  "source_hash": "87dfa45040d89a47a5195830f5bda47bb17052662337007afe48ced0edece48e",
+  "retrieval_layouts": 638,
+  "retrieval_split": "same training-family partition as classifier; held-out families excluded",
+  "artifacts": {
+    "roles.json": {
+      "bytes": 790851,
+      "sha256": "afb2d6c583ae99c9d8e02f586b71dbc93d2a6f09b725598c19c4122e2b467537"
+    },
+    "layouts.json": {
+      "bytes": 268851,
+      "sha256": "16d7f0aab3df0e4acff62ae358672b23e8ffb7cf4a1cdcfee442d5ea7a208168"
+    }
+  }
+}
