@@ -1,0 +1,40 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "api",
+      "runtimeExecutable": ".venv/bin/uvicorn",
+      "runtimeArgs": [
+        "service.app:app",
+        "--port",
+        "8765"
+      ],
+      "port": 8765,
+      "autoPort": false
+    },
+    {
+      "name": "viewer",
+      "runtimeExecutable": "viewer/node_modules/.bin/vite",
+      "runtimeArgs": [
+        "viewer",
+        "--host",
+        "127.0.0.1"
+      ],
+      "port": 5180,
+      "autoPort": false
+    },
+    {
+      "name": "api-latest",
+      "runtimeExecutable": ".venv/bin/uvicorn",
+      "runtimeArgs": [
+        "service.app:app",
+        "--host",
+        "127.0.0.1",
+        "--port",
+        "8766"
+      ],
+      "port": 8766,
+      "autoPort": false
+    }
+  ]
+}
