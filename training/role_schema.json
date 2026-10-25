@@ -1,0 +1,40 @@
+{
+  "schema": "chameleon-role-ontology",
+  "version": 1,
+  "status": "proposed ontology; labels used so far are machine-distilled weak labels, not designer review",
+  "roles": {
+    "headline": {"types": ["text"], "description": "Primary message; usually the largest or most prominent copy."},
+    "subhead": {"types": ["text"], "description": "Supporting copy directly subordinate to the headline (tagline, subtitle)."},
+    "body": {"types": ["text"], "description": "Running or descriptive copy."},
+    "cta": {"types": ["text", "shape", "image"], "description": "Call to action label or its button backplate."},
+    "badge": {"types": ["text", "shape", "image"], "description": "Short offer/price/date marker, often on its own small backplate."},
+    "legal": {"types": ["text"], "description": "Fine print, contact details, URLs, disclaimers."},
+    "logo": {"types": ["image", "text"], "description": "Brand mark or wordmark."},
+    "hero": {"types": ["image"], "description": "The dominant subject image (product, person, scene)."},
+    "image": {"types": ["image"], "description": "Secondary content image."},
+    "decoration": {"types": ["image", "shape"], "description": "Ornamental graphic, frame, backplate, rule or texture placed deliberately. Distinct from unknown."},
+    "background": {"types": ["image", "shape"], "description": "Full-canvas bottom layer."},
+    "unknown": {"types": ["text", "image", "shape"], "description": "Insufficient evidence (missing asset, empty text, unlabeled). Never treated as decoration."}
+  },
+  "engine_aliases": {
+    "badges": "badge",
+    "accent": "decoration",
+    "sticker": "badge",
+    "group": "unknown"
+  },
+  "relations": {
+    "contains": "a holds b inside its opaque area (panel, card, button backplate)",
+    "label_for": "text b labels shape/image a",
+    "reads_before": "a is read before b",
+    "aligns_with": "a and b share an edge or centre line",
+    "supports_on_photo": "text b sits on photograph a and should stay on its quiet region",
+    "overlaps": "a and b intersect without containment"
+  },
+  "authority_order": ["explicit user intent", "explicit source group", "accepted calibrated model suggestion", "heuristic fallback"],
+  "excluded_from_training": {
+    "reason": "fixed visual regression suite (docs/individual-update-plans/visual-suite.v1.json)",
+    "source_ids": ["5dd7b76a9fea0cc374cc080a", "5ef30fa9499b85dcc73cb20e", "58891e5c95a7a863ddcc2f4b"],
+    "catalog_ids": ["b44ab672801fd912f6c2", "d958006f854dabe45ada", "f1cbff73226eeb998ad9"],
+    "local_inputs": ["input/chameleon_sample_level3_advanced.json"]
+  }
+}
