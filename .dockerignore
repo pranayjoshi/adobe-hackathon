@@ -1,0 +1,11 @@
+.git
+.venv
+work
+output
+viewer/node_modules
+express_addon/node_modules
+express_addon/dist
+__pycache__
+*.pyc
+.env
+.env.*
