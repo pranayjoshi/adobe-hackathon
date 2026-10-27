@@ -8,11 +8,14 @@ are then de-overlapped in source order (deoverlap.py) and judged like every othe
 """
 import copy
 import math
+
+import numpy as np
+
 from ..blocks import FLOORS
 from ..canonical import backdrop_patch, rotated_extent
 from ..scene import background_cover_allowed
 from ..typography import fit_text, measure
-from .deoverlap import deoverlap
+from .deoverlap import backed, deoverlap, merge
 from .features import BACKGROUND, IMAGE, MAX_ELEMENTS, SVG, TEXT
 from .infer import predict, weights_path
 
@@ -55,7 +58,8 @@ def records(source, A):
 
 
 def _units(source, A):
-    """Multi-element units that must move rigidly: analysis blocks and explicit group_ids."""
+    """Multi-element units that must move rigidly: analysis blocks, explicit group_ids, and
+    backings with the copy and small graphics that sit on them."""
     units, claimed = [], set()
     for b in list(A.blocks) + list(A.stickers) + list(A.accents):
         ids = [m['id'] for m in b.members]
@@ -66,7 +70,7 @@ def _units(source, A):
         if el.get('group_id') and el['id'] not in claimed:
             groups.setdefault(el['group_id'], []).append(el['id'])
     units += [ids for ids in groups.values() if len(ids) > 1]
-    return units
+    return [u for u in merge(units + backed(source)) if len(u) > 1]
 
 
 def _union(boxes):
@@ -101,6 +105,7 @@ def materialize(source, target, A, recs, pred):
     by_id = {e['id']: e for e in source['elements']}
     box = {}
     fs = {}
+    anchor = {}
     covers = []
     for r, p in zip(recs, pred):
         el = by_id[r['id']]
@@ -131,15 +136,29 @@ def materialize(source, target, A, recs, pred):
             continue
         sb = _union([(float(by_id[i]['x']), float(by_id[i]['y']), float(by_id[i]['width']), float(by_id[i]['height'])) for i in ids])
         pb = _union([box[i] for i in ids])
-        s = math.sqrt(max(pb[2] * pb[3], 1e-6) / max(sb[2] * sb[3], 1e-6))
+        # Scale: the predicted font sizes when the unit holds copy (they track the designer far
+        # better than predicted graphic areas), else the predicted area.
+        texts = [by_id[i] for i in ids if by_id[i]['type'] == 'text']
+        if texts:
+            s = float(np.median([fs[e['id']] / max(float(e['font_size']), 1.0) for e in texts]))
+        else:
+            s = math.sqrt(max(pb[2] * pb[3], 1e-6) / max(sb[2] * sb[3], 1e-6))
+        # Copy in the unit stays readable: grow the whole unit rather than shrink its text.
+        s = max([s] + [_floor(A, e) / max(float(e['font_size']), 1.0) for e in texts])
         s = min(s, tW / sb[2], tH / sb[3])
         cx, cy = pb[0] + pb[2] / 2, pb[1] + pb[3] / 2
+        # The whole unit goes on the canvas (per-element clamping later would pull it apart).
+        cx = min(max(cx, sb[2] * s / 2), tW - sb[2] * s / 2)
+        cy = min(max(cy, sb[3] * s / 2), tH - sb[3] * s / 2)
         for i in ids:
             e = by_id[i]
             box[i] = (cx + (float(e['x']) - sb[0] - sb[2] / 2) * s, cy + (float(e['y']) - sb[1] - sb[3] / 2) * s,
                       float(e['width']) * s, float(e['height']) * s)
             if e['type'] == 'text':
                 fs[i] = float(e['font_size']) * s
+                # Re-measured copy grows away from the unit's centre, so lines stacked against
+                # each other (or against their badge's edge) keep the source's spacing.
+                anchor[i] = 'bottom' if float(e['y']) + float(e['height']) / 2 < sb[1] + sb[3] / 2 else 'top'
     elements = []
     for el in source['elements']:
         out = copy.deepcopy(el)
@@ -148,12 +167,16 @@ def materialize(source, target, A, recs, pred):
             w = min(max(w, 1.0), tW)
             size = max(_floor(A, el), round(fs.get(el['id'], float(el['font_size']))))
             size = min(size, int(el['font_size'] * 4) + 1)
-            fit = fit_text(el, w, max(h * 1.6, size * 1.3), size, fs_min=min(size, _floor(A, el)))
+            # Height budget: the predicted box, or the source's line count at the predicted size
+            # (a predicted box can be one line short; shrinking to it loses the designer's size).
+            lines = max(1, measure(el, int(el['font_size']), float(el['width'])).lines)
+            budget = max(h * 1.6, size * 1.3, lines * size * float(el.get('line_height') or 1.2) * 1.1)
+            fit = fit_text(el, w, budget, size, fs_min=min(size, _floor(A, el)))
             if fit.overflow or fit.height > tH:
                 fit = fit_text(el, w, tH * 0.9, size, fs_min=1)
-            cy = y + h / 2
+            top, bottom = y, y + h
             h = fit.height
-            y = cy - h / 2
+            y = {'top': top, 'bottom': bottom - h}.get(anchor.get(el['id']), (top + bottom - h) / 2)
             out['font_size'] = int(fit.font_size)
             # Copy stays fully on the canvas.
             x = min(max(x, 0.0), tW - w); y = min(max(y, 0.0), tH - h)

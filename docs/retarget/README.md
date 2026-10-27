@@ -54,3 +54,29 @@ Reproduce:
 PYTHONPATH=. python training/retarget/evaluate.py --out work/retarget-runs/v2/test-eval.json
 PYTHONPATH=. python training/retarget/visual.py
 ```
+
+## Extreme-stretch fixes (v3 proposals, same weights)
+
+These are geometry changes in `engine/retarget` only; the weights are unchanged. Raw numbers: [`extreme-fixes-v3.json`](extreme-fixes-v3.json).
+
+- **Backings:** copy on a badge or bar (at most 25% of the canvas, with the copy filling at least 20% of it) moves and scales with it.
+- **Rigid units:** they are scaled by the predicted font size, never below readable floors, and placed on the canvas as a whole.
+- **Overlap removal:**
+  - It is measured per analysis block, as the engine's collision check does, while units move together.
+  - Disjoint pairs keep their order but may switch axis (stack becomes row) when that is clearly cheaper.
+  - When space runs out, graphics shrink before copy.
+- **Text:** fitting no longer shrinks multi-line text into a box predicted one line short.
+
+| Engine + model, 50 rendered cases | IoU | Font err | Order agree | Learned picks | Valid |
+|---|---|---|---|---|---|
+| Baseline v2 | 0.366 | 0.201 | 0.924 | 42 | 50 / 50 |
+| Extreme fixes | **0.375** | **0.173** | **0.928** | 45 | 50 / 50 |
+
+The model-alone top layout was also scored on the 32 held-out image designs that the visual set does not use, to guard against tuning on the 50:
+
+| | IoU (50 / 32) | Font err (50 / 32) | Fails a rule (50 / 32) |
+|---|---|---|---|
+| Baseline v2 | 0.380 / 0.281 | 0.247 / 0.240 | 14 / 8 |
+| Extreme fixes | 0.384 / 0.275 | 0.140 / 0.159 | 6 / 5 |
+
+A looser backing (half-canvas panels, any text share) bound too much: rule failures went from 6 to 11 on the 50 cases.

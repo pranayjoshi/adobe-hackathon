@@ -99,3 +99,45 @@ class DeoverlapTests(unittest.TestCase):
         from engine.retarget.deoverlap import deoverlap
         source = self._source()
         self.assertEqual(deoverlap(source, source, analyze(source)), source)
+
+    def test_stack_may_reflow_into_a_row_on_a_wide_canvas(self):
+        from engine.retarget.deoverlap import _relation
+        photo, panel = [0, 0, 1000, 600], [0, 620, 1000, 380]          # source: photo above panel
+        now_photo, now_panel = [0, 0, 833, 500], [700, 120, 1000, 380]  # 2000x500: side by side, touching
+        axis, photo_first, allowed = _relation(photo, panel, now_photo, now_panel, 0.0)
+        # Stacking cannot fit in 500px; keep the order on the horizontal axis (above -> left).
+        self.assertEqual((axis, photo_first, allowed), (0, True, None))
+        # When stacking is still the cheap fix, the source axis is kept.
+        self.assertEqual(_relation(photo, panel, [0, 0, 1000, 600], [0, 580, 1000, 380], 0.0)[:2], (1, True))
+
+
+class BackingTests(unittest.TestCase):
+    def _source(self):
+        return {'canvas': {'width': 600, 'height': 600}, 'elements': [
+            {'id': 'bg', 'type': 'shape', 'x': 0, 'y': 0, 'width': 600, 'height': 600, 'z_index': 0,
+             'shape_type': 'rectangle', 'fill_color': '#ffffff'},
+            {'id': 'badge', 'type': 'shape', 'x': 380, 'y': 380, 'width': 180, 'height': 120, 'z_index': 1,
+             'shape_type': 'rectangle', 'fill_color': '#cc2222'},
+            {'id': 'dot', 'type': 'shape', 'x': 390, 'y': 390, 'width': 4, 'height': 4, 'z_index': 2,
+             'shape_type': 'ellipse', 'fill_color': '#ffffff'},
+            {'id': 'title', 'type': 'text', 'x': 40, 'y': 60, 'width': 500, 'height': 80, 'z_index': 3,
+             'content': 'BIG TITLE', 'font_family': 'Inter', 'font_size': 60, 'color': '#000000'},
+            {'id': 'label', 'type': 'text', 'x': 400, 'y': 420, 'width': 140, 'height': 40, 'z_index': 4,
+             'content': 'SALE', 'font_family': 'Inter', 'font_size': 30, 'color': '#ffffff'}]}
+
+    def test_copy_attaches_to_its_smallest_backing_and_specks_stay_free(self):
+        from engine.retarget.deoverlap import backed
+        self.assertEqual(backed(self._source()), [['badge', 'label']])
+
+    def test_copy_stays_on_its_badge_when_predictions_pull_them_apart(self):
+        from engine.analysis import analyze
+        from engine.retarget.propose import materialize, records
+        source = self._source(); A = analyze(source); recs = records(source, A)
+        target = {'width': 300, 'height': 900}
+        pred = {'bg': (0, 0, 300, 900, 0), 'badge': (20, 700, 200, 133, 0), 'dot': (30, 710, 4, 4, 0),
+                'title': (20, 60, 260, 60, 40), 'label': (150, 100, 120, 40, 30)}  # label far from badge
+        p = [dict(zip(('x', 'y', 'w', 'h', 'font_size'), pred[r['id']])) for r in recs]
+        out = {e['id']: e for e in materialize(source, target, A, recs, p)['elements']}
+        b, t = out['badge'], out['label']
+        self.assertTrue(b['x'] <= t['x'] and t['x'] + t['width'] <= b['x'] + b['width'] + 0.5)
+        self.assertTrue(b['y'] <= t['y'] and t['y'] + t['height'] <= b['y'] + b['height'] + 0.5)
