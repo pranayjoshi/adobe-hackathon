@@ -42,6 +42,8 @@ def legacy_proposals(context: ProposalContext, *, portfolio=None, retrieval_vers
     if by["identity"].proposals:
         proposals.insert(0, by["identity"].proposals[0].as_legacy())
     proposals += [p.as_legacy() for p in by["source_frame"].proposals]
+    from ..retarget.propose import candidates as learned
+    proposals += learned(context.source, context.target, context.analysis, context.profile, events)
     return proposals, events, results
 
 

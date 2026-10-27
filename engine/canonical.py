@@ -119,6 +119,24 @@ def _asset_info(asset_id: str) -> tuple[int, int, tuple[int, int, int, int]] | N
         return None
 
 
+@lru_cache(maxsize=256)
+def asset_opaque_fraction(asset_id: str) -> float:
+    """Share of pixels that are fully opaque (alpha >= 250); 0 when the asset is unreadable."""
+    path = (ASSETS_DIR / asset_id).resolve()
+    if not path.is_relative_to(ASSETS_DIR.resolve()) or not path.is_file():
+        return 0.0
+    try:
+        from PIL import Image
+
+        with Image.open(path) as im:
+            if im.mode not in ("RGBA", "LA") and "transparency" not in im.info:
+                return 1.0
+            hist = im.convert("RGBA").getchannel("A").histogram()
+            return sum(hist[250:]) / max(1, sum(hist))
+    except Exception:
+        return 0.0
+
+
 def asset_exists(asset_id: str | None) -> bool:
     return bool(asset_id) and _asset_info(asset_id) is not None
 

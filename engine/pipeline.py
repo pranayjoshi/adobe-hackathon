@@ -146,6 +146,10 @@ def _generate_legacy(source, target, emphasis="balanced", top_k=3, analysis=None
             e.update(x=e['x']*k+ox,y=e['y']*k+oy,width=e['width']*k,height=e['height']*k)
             if e['type']=='text':e['font_size']=max(1,int(e['font_size']*k))
         proposals.append(('source_frame','Original arrangement','Uniform scaling preserves the original arrangement; may leave unused space.',safe))
+        # Layout transformer trained on Crello designer resizes (engine/retarget); its boxes pass
+        # the same checks as every other candidate.
+        from .retarget.propose import candidates as learned
+        proposals+=learned(source,target,A,options,events)
     results=[];seen=set()
     def build(template,name,description,design,trace):
         # Dataset provenance belongs to the source record, not the strict
@@ -186,6 +190,8 @@ def _generate_legacy(source, target, emphasis="balanced", top_k=3, analysis=None
         return r
     for template,name,desc,design in proposals:
         if template in ("identity","source_frame"):evaluate(template,name,desc,design,[]);continue
+        # Learned layouts keep intended overlaps (text on shapes/photos); also compete unrepaired.
+        if template.startswith('learned_'):evaluate(template+'_raw',name,desc,design,[])
         fixed,trace=repair(source,_lock(design,A,locks),A,locks)
         evaluate(template,name,desc,fixed,trace)
     def rank(r):
@@ -238,6 +244,7 @@ def _generate_legacy(source, target, emphasis="balanced", top_k=3, analysis=None
         # Verify newly promoted winners too: pixel evidence can change ranking.
         verified_ids=set()
         while True:
+            results=_prefer_learned(results,rank)
             pending=[r for r in results[:max(1,min(3,top_k))] if r['id'] not in verified_ids]
             if not pending:break
             for r in pending:
@@ -247,9 +254,15 @@ def _generate_legacy(source, target, emphasis="balanced", top_k=3, analysis=None
     for r in results:
         r["trace"].append({"roles":role_status,"events":events,"elapsed_ms":round((time.monotonic()-started)*1000)})
     results.sort(key=rank,reverse=True)
+    results=_prefer_learned(results,rank)
     if all_candidates:return results
+    lead=results[:1] if results and results[0].get('preferred_learned') else []
     if _provider_workflow(options):
         from .providers import fingerprint, mmr_select
+        if lead:
+            rest=mmr_select(results[1:],top_k-1,quality=lambda r:r['rubric']['tier2']['overall'] if r['rubric'].get('tier2') else r['score']['total'],
+                            fingerprint_of=lambda r:fingerprint(r['design'],A),gate=lambda r:rank(r)[:3]) if top_k>1 else []
+            return lead+rest
         return mmr_select(results,top_k,quality=lambda r:r['rubric']['tier2']['overall'] if r['rubric'].get('tier2') else r['score']['total'],
                           fingerprint_of=lambda r:fingerprint(r['design'],A),gate=lambda r:rank(r)[:3])
     picked=[];families=set()
@@ -261,7 +274,33 @@ def _generate_legacy(source, target, emphasis="balanced", top_k=3, analysis=None
     for r in results:
         if len(picked)>=top_k:break
         if r not in picked:picked.append(r)
-    return sorted(picked,key=rank,reverse=True)
+    return lead+sorted([r for r in picked if r not in lead],key=rank,reverse=True)
+
+
+LEARNED_SOFT_DEFECTS={'scene_displacement'}
+
+
+def _learned_eligible(r):
+    """A learned layout is used unless a hard check vetoes it."""
+    from .refine import blocking
+    if not (r['valid'] and r.get('rubric',{}).get('gate') and blocking(r)==0):return False
+    defects={k for k,v in r['quality']['defects'].items() if v}
+    return not (defects-LEARNED_SOFT_DEFECTS) and not r['diagnostics'].get('collisions') and not r['diagnostics'].get('contrast_regressions')
+
+
+def _prefer_learned(results,rank):
+    """Designer-trained layouts win over templates whenever they pass every hard check; among
+    them the rubric decides. Otherwise the existing ranking stands."""
+    for r in results:r.pop('preferred_learned',None)
+    learned=[r for r in results if 'learned_' in r['template'] and _learned_eligible(r)]
+    if not learned:return results
+    # Trust the model's own most likely layout first (greedy sample 0, unrepaired), then its
+    # repaired form, then other samples; engine refinements of a learned layout come last.
+    def order(r):
+        t=r['template']
+        return (t.startswith(('refined_','solver_')),not t.startswith('learned_0'),not t.endswith('_raw'),t)
+    best=min(learned,key=order);best['preferred_learned']=True
+    return [best]+[r for r in results if r is not best]
 
 
 def assess_design(source, target, design, A, name='Edited design', locks=None):

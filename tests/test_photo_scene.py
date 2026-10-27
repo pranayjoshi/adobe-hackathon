@@ -29,7 +29,8 @@ class PhotoSceneTests(unittest.TestCase):
    for k in ('id','asset_id','content','font_family'):self.assertEqual(old.get(k),new.get(k))
  def test_old_bad_banner_is_not_the_winner(self):
   s=self.source();r=generate(s,{'width':1600,'height':400},options={'render':False,'solver':False},all_candidates=True)
-  self.assertTrue(r[0]['quality']['passed']);self.assertEqual(r[0]['template'].replace('refined_',''),'photo_scene')
+  # The winner fills the banner with the photo: the photo scene or a designer-trained learned layout.
+  self.assertTrue(r[0]['quality']['passed']);self.assertTrue(r[0]['template'].replace('refined_','').startswith(('photo_scene','learned_')))
   rejected=[c for c in r if c['template'].startswith('banner_')];self.assertTrue(rejected);self.assertTrue(any(c['quality']['defects']['unsupported_text'] for c in rejected))
 
 

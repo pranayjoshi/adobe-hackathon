@@ -12,7 +12,7 @@ from functools import lru_cache
 from statistics import median, pstdev
 from typing import Any
 
-from .canonical import ROOT, MUTABLE_FIELDS, Box, _asset_info, element_box, parse_alpha, rotated_extent, visual_box
+from .canonical import ROOT, MUTABLE_FIELDS, Box, _asset_info, asset_opaque_fraction, element_box, parse_alpha, rotated_extent, visual_box
 
 SCHEMA = ROOT / 'chameleon_design_schema_v0.9.json'
 WEIGHTS = {'legibility': .22, 'contrast': .10, 'hierarchy': .16, 'grouping': .12, 'overlap': .10,
@@ -39,7 +39,9 @@ def _opaque(e):
         return False
     if e['type'] == 'shape':
         return parse_alpha(e.get('fill_color')) >= 1 and not str(e.get('fill_color', '')).startswith('transparent')
-    return e['type'] == 'image' and e.get('fit') in ('cover', 'fill') and _asset_info(e.get('asset_id') or '') is not None
+    # A translucent overlay (tint, gradient PNG) does not hide what is beneath it.
+    return e['type'] == 'image' and e.get('fit') in ('cover', 'fill') and _asset_info(e.get('asset_id') or '') is not None \
+        and asset_opaque_fraction(e.get('asset_id') or '') >= .98
 
 
 def _contains(outer: Box, inner: Box, frac=1.0):
