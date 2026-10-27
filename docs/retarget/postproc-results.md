@@ -59,18 +59,22 @@ Times are from the harness at 8-way parallel load, so they overstate idle latenc
 - **IoU is 0.01 below today's** and still short of the raw model's 0.310. The solver's model term pulls toward the mode of each distribution, but alignment and margin terms and the verify loop move units off it. Appeal selection also does not reward designer agreement. The plan treats IoU as a sanity bar; the human rounds decide whether this matters.
 - **Collisions rose** (held-out 6.8% → 9.0%). Most are small accents and decorations touching copy after the solver packs the layout tighter. The verify loop catches collisions only with checked layers.
 - **Strips stay hard.** 56% still fail, mostly because some cases cannot satisfy the rules: long single words in 90-px-wide strips, and hairline decorations that must stay ≥ 1 px at a locked aspect. A model trained on strip data, from the synthetic set, is the next lever.
-- **Latency.** In the full engine under load, a design took 67–71 s. The plan's guardrail is 15 s. The solver runs once per profile, so dropping the "bold" profile or the verify rounds is the obvious lever if the human rounds do not need them.
+- **Latency is at the limit.** On a near-idle machine, the full engine on 8 test designs took a median 15.0 s (max 34.0 s), against 11.5 s (max 18.8 s) with post-processing off. The plan's guardrail is a 15 s median. Under heavy load it reached 67–71 s. The solver runs once per profile, so dropping the "bold" profile or verify rounds is the lever if the human rounds do not need them.
 - **Visual judge.** No OpenJev server was available, so selection uses the appeal score alone, which the plan allows.
+
+## Synthetic strips
+
+From 2,000 train designs, each given one random strip format, 872 targets passed every engine check and were kept (`work/postproc/strips/synthetic.jsonl`). 540 came from the composer and 332 from the solver; every format has 69–154 targets. The other 1,128 had no candidate that passed. These are ready to add as extra (source, target) pairs in the next model update. They are not yet used.
 
 ## Human preference (primary target)
 
-The voting page is https://claude.ai/artifact/XnjGXRU4gr2rsWZ7FChGAK, private until shared.
+There are two voting pages, both private until shared: https://claude.ai/artifact/XnjGXRU4gr2rsWZ7FChGAK (round 0) and https://claude.ai/artifact/B8ZsoHd5VaGeLKgKRsUW3c (rounds 1 and strips). An artifact version holds at most 511 files, so the rounds are split across two pages.
 
 | Round | Arms | Designs | Status |
 |---|---|---|---|
 | r0 | today's engine vs designer's own render | 101 test | live, no votes yet |
-| r1 | new vs today's engine | 88 val | rendered for the page |
-| rs | new vs today's engine, strips | 60 | rendered for the page |
+| r1 | new vs today's engine | 88 val | live, no votes yet |
+| rs | new vs today's engine, strips | 60 | live, no votes yet |
 
 The primary targets (≥ 65% vs today, ≥ 40% vs designer, ≤ 5% broken) cannot be judged until votes come in. The appeal scorer should also be re-validated against those votes (plan 3.6) before its ranking is trusted further.
 
