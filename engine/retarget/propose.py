@@ -232,8 +232,59 @@ def candidates(source, target, A, options, events):
             or source['canvas'] == target:
         return []
     try:
-        return [(f'learned_{tag}', 'Learned layout', 'Predicted by the retargeting model trained on designer resizes', d)
-                for tag, d in propose(source, target, A, k=int(options.get('learned_samples', 6)))]
+        out = [(f'learned_{tag}', 'Learned layout', 'Predicted by the retargeting model trained on designer resizes', d)
+               for tag, d in propose(source, target, A, k=int(options.get('learned_samples', 6)))]
     except (ValueError, OSError, KeyError) as exc:
         events.append({'learned_retarget': f'unavailable: {exc}'})
         return []
+    if options.get('postproc', os.environ.get('CHAMELEON_POSTPROC', '')) == 'solver' and out:
+        out = solved(source, target, A, out[0][3], events, options) + out
+    return out
+
+
+SOLVER_PROFILES = {'balanced': {}, 'bold': {'headline': 0.6, 'margin': 0.25, 'balance': 0.1}}
+
+
+def solved(source, target, A, warm, events, options=None):
+    """Constrained decoding of the model's greedy distribution (engine/retarget/solver.py) under each
+    weight profile, warm-started from today's greedy layout, or for extreme strips from the
+    reading-order composer (which is itself a candidate). Tagged learned_s0_<profile> and
+    learned_strip; the engine ranks the ones that pass every check by appeal."""
+    from .infer import predict_dist
+    from .solver import Problem, solve
+    from .strip import compose
+    options = options or {}
+    out = []
+    try:
+        recs = records(source, A)
+        W, H = float(source['canvas']['width']), float(source['canvas']['height'])
+        boxes, probs, _ = predict_dist(recs, W, H, float(target['width']), float(target['height']), k=1)
+        P = Problem(source, target, A, recs, _priors())
+        if P.strip:
+            warm = compose(P)
+            out.append(('learned_strip', 'Strip layout', 'The content in reading order along the strip', warm))
+        for name, wts in SOLVER_PROFILES.items():
+            sol = solve(P, boxes[0], probs[0], weights=wts, time_limit=float(options.get('solver_seconds', 1.5)), hint=warm,
+                        workers=int(options.get('solver_workers', 8)))
+            if sol is not None and sol.design is not None:
+                out.append((f'learned_s0_{name}', 'Learned layout (solved)', 'The model\'s most likely layout that satisfies every check', sol.design))
+                events.append({'learned_solver': {'profile': name, 'status': sol.status, 'notes': sol.notes[-3:]}})
+            else:
+                events.append({'learned_solver': {'profile': name, 'status': 'no solution'}})
+    except Exception as exc:  # the solver is an addition: today's candidates stand without it
+        events.append({'learned_solver': f'failed: {type(exc).__name__}: {exc}'})
+    return out
+
+
+_PRIORS = None
+
+
+def _priors():
+    """Designer priors (margins, headline scale, ...) measured on Crello's train split."""
+    global _PRIORS
+    if _PRIORS is None:
+        import json
+        from pathlib import Path
+        p = Path(__file__).resolve().parents[1] / 'models' / 'designer_priors.json'
+        _PRIORS = json.loads(p.read_text()) if p.exists() else {}
+    return _PRIORS

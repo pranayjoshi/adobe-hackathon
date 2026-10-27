@@ -191,6 +191,8 @@ def _generate_legacy(source, target, emphasis="balanced", top_k=3, analysis=None
     for template,name,desc,design in proposals:
         if template in ("identity","source_frame"):evaluate(template,name,desc,design,[]);continue
         # Learned layouts keep intended overlaps (text on shapes/photos); also compete unrepaired.
+        # Solved learned layouts already satisfy every check: assess them as they are.
+        if template.startswith(('learned_s0','learned_strip')):evaluate(template,name,desc,design,[]);continue
         if template.startswith('learned_'):evaluate(template+'_raw',name,desc,design,[])
         fixed,trace=repair(source,_lock(design,A,locks),A,locks)
         evaluate(template,name,desc,fixed,trace)
@@ -244,7 +246,7 @@ def _generate_legacy(source, target, emphasis="balanced", top_k=3, analysis=None
         # Verify newly promoted winners too: pixel evidence can change ranking.
         verified_ids=set()
         while True:
-            results=_prefer_learned(results,rank,source)
+            results=_prefer_learned(results,rank,source,A)
             pending=[r for r in results[:max(1,min(3,top_k))] if r['id'] not in verified_ids]
             if not pending:break
             for r in pending:
@@ -254,7 +256,7 @@ def _generate_legacy(source, target, emphasis="balanced", top_k=3, analysis=None
     for r in results:
         r["trace"].append({"roles":role_status,"events":events,"elapsed_ms":round((time.monotonic()-started)*1000)})
     results.sort(key=rank,reverse=True)
-    results=_prefer_learned(results,rank,source)
+    results=_prefer_learned(results,rank,source,A)
     if all_candidates:return results
     lead=results[:1] if results and results[0].get('preferred_learned') else []
     if _provider_workflow(options):
@@ -310,35 +312,62 @@ def _new_occlusion(source,design,limit=.25):
     return [i for i,f in after.items() if f>before.get(i,0.0)+limit]
 
 
+def _collapse_floor(design):
+    """Share of the source's content share a learned layout must keep. Extreme strips (4:1 and
+    beyond) are a single row or column with margins, so they keep less by construction."""
+    a=design['canvas']['width']/design['canvas']['height']
+    return .3 if a>=4 or a<=.25 else .5
+
+
 def _learned_eligible(r,source=None):
     """A learned layout is used unless a hard check vetoes it, its content has collapsed into a
     small part of the canvas (under half the share the source used), or it newly hides an
     element under another."""
     from .refine import blocking
     if not (r['valid'] and r.get('rubric',{}).get('gate') and blocking(r)==0):return False
-    if source is not None and (_content_share(r['design'])<.5*_content_share(source) or _new_occlusion(source,r['design'])):
+    if source is not None and (_content_share(r['design'])<_collapse_floor(r['design'])*_content_share(source) or _new_occlusion(source,r['design'])):
         return False
     defects={k for k,v in r['quality']['defects'].items() if v}
     return not (defects-LEARNED_SOFT_DEFECTS) and not r['diagnostics'].get('collisions') and not r['diagnostics'].get('contrast_regressions')
 
 
-def _prefer_learned(results,rank,source=None):
+def _appeal_selection():
+    import os
+    from .retarget import appeal
+    return os.environ.get('CHAMELEON_POSTPROC','')=='solver' and appeal.available()
+
+
+def _prefer_learned(results,rank,source=None,A=None):
     """Designer-trained layouts win over templates whenever they pass every hard check; among
     them the rubric decides. Otherwise the existing ranking stands."""
     for r in results:r.pop('preferred_learned',None)
     if source is not None:
         # Learned layouts that collapse or hide an element rank below every other candidate;
         # the rubric does not see those faults.
-        bad=lambda r:'learned_' in r['template'] and (_content_share(r['design'])<.5*_content_share(source) or bool(_new_occlusion(source,r['design'])))
+        bad=lambda r:'learned_' in r['template'] and (_content_share(r['design'])<_collapse_floor(r['design'])*_content_share(source) or bool(_new_occlusion(source,r['design'])))
         results=[r for r in results if not bad(r)]+[r for r in results if bad(r)]
     learned=[r for r in results if 'learned_' in r['template'] and _learned_eligible(r,source)]
     if not learned:return results
+    if source is not None and _appeal_selection():
+        # Constrained decoding is on: every eligible learned layout is valid, so people's
+        # preference (the learned appeal score) picks among them.
+        from .retarget import appeal
+        A=A or analyze(source)
+        si=appeal.source_info(source,A)
+        for r in learned:
+            if 'appeal' not in r:
+                t2=r.get('rubric',{}).get('tier2') or {}
+                try:r['appeal']=appeal.score(source,r['design'],A,si,judged=(True,[],{'overall':t2.get('overall'),'scores':t2.get('scores')}))
+                except Exception:r['appeal']=0.0
+        best=max(learned,key=lambda r:(r['appeal'],not r['template'].startswith(('refined_','solver_'))));best['preferred_learned']=True
+        return [best]+[r for r in results if r is not best]
     # Trust the model's own most likely layout first (greedy sample 0, unrepaired), then its
     # repaired form, then its copy-bound fallback, then other samples; engine refinements of a
     # learned layout come last.
     def order(r):
         t=r['template']
-        return (t.startswith(('refined_','solver_')),not t.startswith('learned_0'),'_bound' in t,not t.endswith('_raw'),t)
+        # learned_s0: the constrained decoding of the greedy layout (CHAMELEON_POSTPROC=solver)
+        return (t.startswith(('refined_','solver_')),not t.startswith(('learned_s0','learned_0')),not t.startswith('learned_s0'),'_bound' in t,not t.endswith('_raw'),t)
     best=min(learned,key=order);best['preferred_learned']=True
     return [best]+[r for r in results if r is not best]
 

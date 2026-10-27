@@ -1,0 +1,253 @@
+<title>Resize Taste Test</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700&family=Source+Sans+3:wght@400;600&family=JetBrains+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: a light-table. The brief sits on the left rail, the two candidates fill the bench side by side (stacked on phones). */
+:root {
+  --paper: #f3f4f1;
+  --bench: #e6e8e3;
+  --ink: #1d2320;
+  --muted: #5f6a64;
+  --line: #c9cec8;
+  --accent: #2f5d50;
+  --accent-ink: #ffffff;
+  --pick: #c4572f;
+  --display: "Bricolage Grotesque", "Avenir Next", "Segoe UI", sans-serif;
+  --body: "Source Sans 3", "Segoe UI", "Helvetica Neue", sans-serif;
+  --mono: "JetBrains Mono", ui-monospace, "SF Mono", Menlo, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --paper: #151917; --bench: #1e2420; --ink: #e7ebe8; --muted: #9aa69f; --line: #34403a;
+    --accent: #7fb8a5; --accent-ink: #0f1513; --pick: #ec8a62; color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --paper: #151917; --bench: #1e2420; --ink: #e7ebe8; --muted: #9aa69f; --line: #34403a;
+  --accent: #7fb8a5; --accent-ink: #0f1513; --pick: #ec8a62; color-scheme: dark;
+}
+* { box-sizing: border-box; }
+body {
+  background: var(--paper); color: var(--ink); font: 16px/1.5 var(--body);
+  padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px));
+  padding-block: 20px 40px;
+}
+.wrap { max-width: 1240px; margin: 0 auto; display: grid; gap: 18px; }
+header { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 12px 24px; }
+h1 { font: 700 clamp(1.5rem, 1.1rem + 1.4vw, 2.1rem)/1.1 var(--display); margin: 0; text-wrap: balance; letter-spacing: -0.01em; }
+.lede { color: var(--muted); margin: 4px 0 0; max-width: 62ch; }
+.rounds { display: flex; flex-wrap: wrap; gap: 8px; }
+.round { font: 500 0.85rem var(--mono); border: 1px solid var(--line); background: transparent; color: var(--ink);
+  border-radius: 999px; padding: 6px 12px; cursor: pointer; }
+.round[aria-pressed="true"] { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
+.round:focus-visible, button:focus-visible, .tag:focus-visible { outline: 2px solid var(--pick); outline-offset: 2px; }
+.progress { display: flex; align-items: center; gap: 12px; font: 0.85rem var(--mono); color: var(--muted); font-variant-numeric: tabular-nums; }
+.bar { flex: 1; height: 4px; background: var(--line); border-radius: 2px; overflow: hidden; min-width: 120px; }
+.bar > i { display: block; height: 100%; background: var(--accent); width: 0; transition: width .25s; }
+.table { display: grid; grid-template-columns: minmax(150px, 220px) 1fr; gap: 18px; align-items: start; }
+.brief { display: grid; gap: 10px; min-width: 0; }
+.label { font: 500 0.72rem var(--mono); text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); }
+.brief img { width: 100%; height: auto; border: 1px solid var(--line); background: var(--bench); }
+.spec { font: 0.9rem var(--mono); font-variant-numeric: tabular-nums; }
+.spec b { font-weight: 500; color: var(--accent); }
+.bench { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; background: var(--bench); padding: 14px; border-radius: 6px; min-width: 0; }
+.cand { display: grid; gap: 8px; min-width: 0; }
+.frame { display: grid; place-items: center; min-height: 260px; max-height: 62vh; padding: 8px; }
+.frame img { max-width: 100%; max-height: calc(62vh - 16px); object-fit: contain; box-shadow: 0 1px 0 var(--line), 0 6px 20px rgba(0,0,0,.08); }
+.cand.won .frame img { outline: 3px solid var(--pick); outline-offset: 3px; }
+.cand h2 { margin: 0; font: 700 1.05rem var(--display); }
+.vote { display: flex; flex-wrap: wrap; gap: 10px; justify-content: center; }
+.vote button { font: 600 1rem var(--body); padding: 12px 18px; border-radius: 6px; border: 1px solid var(--line);
+  background: var(--paper); color: var(--ink); cursor: pointer; min-width: 9.5em; }
+.vote button.primary { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
+.vote button[aria-pressed="true"] { background: var(--pick); border-color: var(--pick); color: #fff; }
+.vote kbd { font: 0.75rem var(--mono); opacity: .7; margin-left: 6px; }
+.tags { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; align-items: center; }
+.tag { font: 0.85rem var(--body); border: 1px dashed var(--line); background: transparent; color: var(--muted); padding: 4px 10px; border-radius: 4px; cursor: pointer; }
+.tag[aria-pressed="true"] { border-style: solid; border-color: var(--pick); color: var(--ink); }
+nav { display: flex; justify-content: space-between; gap: 10px; }
+nav button { font: 500 0.9rem var(--mono); background: transparent; border: none; color: var(--accent); cursor: pointer; padding: 6px 0; }
+nav button:disabled { color: var(--line); cursor: default; }
+.status { font: 0.85rem var(--mono); color: var(--muted); text-align: center; min-height: 1.4em; }
+.empty { padding: 48px 16px; text-align: center; color: var(--muted); }
+@media (max-width: 760px) {
+  .table { grid-template-columns: 1fr; }
+  .brief { grid-template-columns: 96px 1fr; align-items: center; }
+  .bench { grid-template-columns: 1fr; }
+  .frame { min-height: 180px; }
+}
+@media (prefers-reduced-motion: reduce) { .bar > i { transition: none; } }
+</style>
+
+<div class="wrap">
+  <header>
+    <div>
+      <h1>Resize Taste Test</h1>
+      <p class="lede">Each design below was resized to a new format in two different ways. Pick the one you would rather publish. The two sides are shuffled, and nobody sees which method made which.</p>
+    </div>
+    <div class="rounds" id="rounds" role="group" aria-label="Rounds"></div>
+  </header>
+  <div class="progress"><span id="count">0 / 0</span><div class="bar"><i id="bar"></i></div><span id="whoami"></span></div>
+  <main id="main" class="empty">Loading the designs…</main>
+</div>
+
+<script>
+(() => {
+  const TAGS = ['Hard to read', 'Crowded', 'Misaligned', 'Unbalanced', 'Too empty', 'Cut off or hidden'];
+  const state = { manifest: null, round: null, i: 0, votes: {}, uid: null, db: null, docExists: false, queue: Promise.resolve() };
+  const $ = (id) => document.getElementById(id);
+
+  function hash(s) { let h = 2166136261; for (let i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 16777619); } return h >>> 0; }
+  function localSeed() {
+    try { let s = localStorage.getItem('rtt-seed'); if (!s) { s = String(Math.random()).slice(2); localStorage.setItem('rtt-seed', s); } return s; }
+    catch { return 'anon'; }
+  }
+  function order(c) {
+    const arms = state.round.arms.filter((a) => c.arms[a]);
+    return hash((state.uid || localSeed()) + '|' + c.id) % 2 ? arms.slice().reverse() : arms;
+  }
+  function comps() { return state.round ? state.round.comparisons : []; }
+  function voted(c) { return state.votes[c.id]; }
+
+  function renderRounds() {
+    const el = $('rounds'); el.textContent = '';
+    for (const r of state.manifest.rounds) {
+      const b = document.createElement('button');
+      b.className = 'round'; b.type = 'button';
+      const done = r.comparisons.filter((c) => state.votes[c.id]).length;
+      b.textContent = `${r.name} · ${done}/${r.comparisons.length}`;
+      b.setAttribute('aria-pressed', String(r === state.round));
+      b.onclick = () => { state.round = r; state.i = firstOpen(); render(); };
+      el.append(b);
+    }
+  }
+  function firstOpen() { const k = comps().findIndex((c) => !voted(c)); return k < 0 ? 0 : k; }
+
+  function render() {
+    renderRounds();
+    const list = comps();
+    const done = list.filter(voted).length;
+    $('count').textContent = `${done} / ${list.length} judged`;
+    $('bar').style.width = list.length ? (100 * done / list.length) + '%' : '0';
+    const main = $('main');
+    if (!list.length) { main.className = 'empty'; main.textContent = 'This round has no designs yet.'; return; }
+    const c = list[state.i];
+    const [a, b] = order(c);
+    const v = voted(c) || {};
+    main.className = '';
+    main.innerHTML = '';
+    const table = document.createElement('div'); table.className = 'table';
+    const brief = document.createElement('aside'); brief.className = 'brief';
+    brief.innerHTML = `<div class="label">Original</div>`;
+    if (c.source) { const im = new Image(); im.src = c.source; im.alt = 'The original design'; brief.append(im); }
+    const spec = document.createElement('div'); spec.className = 'spec';
+    const src = c.source_size ? `${c.source_size[0]}×${c.source_size[1]}` : '';
+    spec.innerHTML = (src ? `from ${src}<br>` : '') + (c.target ? `to <b>${c.target[0]}×${c.target[1]}</b>` : '');
+    brief.append(spec);
+    const bench = document.createElement('section'); bench.className = 'bench'; bench.setAttribute('aria-label', state.round.question);
+    [['A', a], ['B', b]].forEach(([lab, arm]) => {
+      const box = document.createElement('div'); box.className = 'cand' + (v.w === arm ? ' won' : '');
+      box.innerHTML = `<h2>${lab}</h2>`;
+      const fr = document.createElement('div'); fr.className = 'frame';
+      const im = new Image(); im.src = c.arms[arm]; im.alt = `Resize ${lab}`; fr.append(im); box.append(fr);
+      bench.append(box);
+    });
+    table.append(brief, bench);
+    const vote = document.createElement('div'); vote.className = 'vote';
+    const opts = [['A is better', a, '1'], ['About the same', 'tie', '2'], ['B is better', b, '3']];
+    for (const [text, arm, key] of opts) {
+      const btn = document.createElement('button'); btn.type = 'button';
+      btn.className = arm === 'tie' ? '' : 'primary';
+      btn.setAttribute('aria-pressed', String(v.w === arm));
+      btn.innerHTML = `${text}<kbd>${key}</kbd>`;
+      btn.onclick = () => cast(c, arm);
+      vote.append(btn);
+    }
+    const tags = document.createElement('div'); tags.className = 'tags';
+    tags.innerHTML = `<span class="label">What's wrong with the worse one?</span>`;
+    for (const t of TAGS) {
+      const tb = document.createElement('button'); tb.type = 'button'; tb.className = 'tag'; tb.textContent = t;
+      const on = (v.tags || []).includes(t); tb.setAttribute('aria-pressed', String(on));
+      tb.onclick = () => toggleTag(c, t);
+      tags.append(tb);
+    }
+    const nav = document.createElement('nav');
+    const prev = document.createElement('button'); prev.type = 'button'; prev.textContent = '← Previous'; prev.disabled = state.i === 0;
+    prev.onclick = () => { state.i--; render(); };
+    const next = document.createElement('button'); next.type = 'button'; next.textContent = 'Next →'; next.disabled = state.i >= list.length - 1;
+    next.onclick = () => { state.i++; render(); };
+    const pos = document.createElement('span'); pos.className = 'label'; pos.textContent = `${state.i + 1} of ${list.length}`;
+    nav.append(prev, pos, next);
+    const status = document.createElement('div'); status.className = 'status'; status.id = 'status';
+    main.append(table, vote, tags, nav, status);
+  }
+
+  function setStatus(t) { const s = $('status'); if (s) s.textContent = t; }
+
+  function save(c) {
+    const rec = state.votes[c.id];
+    if (!state.db || !state.uid) { setStatus('Sign in to claude.ai to record votes.'); return; }
+    state.queue = state.queue.then(async () => {
+      const ref = state.db.doc('votes/' + state.uid);
+      const body = { v: { [c.id.replace(/[.:]/g, '_')]: rec } };
+      try {
+        if (state.docExists) await ref.update(body); else { await ref.set(body); state.docExists = true; }
+        setStatus('Saved');
+      } catch (e) {
+        setStatus(e && e.code === 'not_granted' ? 'Your access lets you look but not vote.' : 'Not saved. Check your connection and vote again.');
+      }
+    });
+  }
+  function cast(c, arm) {
+    const old = state.votes[c.id] || {};
+    state.votes[c.id] = { id: c.id, round: state.round.id, w: arm, arms: state.round.arms, tags: old.tags || [], at: Date.now() };
+    save(c);
+    if (state.i < comps().length - 1) state.i++;
+    render();
+  }
+  function toggleTag(c, t) {
+    const rec = state.votes[c.id] || { id: c.id, round: state.round.id, w: null, arms: state.round.arms, tags: [], at: Date.now() };
+    rec.tags = rec.tags.includes(t) ? rec.tags.filter((x) => x !== t) : rec.tags.concat(t);
+    state.votes[c.id] = rec; save(c); render();
+  }
+
+  document.addEventListener('keydown', (e) => {
+    if (!state.round || e.metaKey || e.ctrlKey || e.altKey) return;
+    const c = comps()[state.i]; if (!c) return;
+    const [a, b] = order(c);
+    if (e.key === '1') cast(c, a);
+    else if (e.key === '2') cast(c, 'tie');
+    else if (e.key === '3') cast(c, b);
+    else if (e.key === 'ArrowRight' && state.i < comps().length - 1) { state.i++; render(); }
+    else if (e.key === 'ArrowLeft' && state.i > 0) { state.i--; render(); }
+  });
+
+  async function boot() {
+    try {
+      const r = await fetch('manifest.json');
+      state.manifest = await r.json();
+    } catch { $('main').textContent = 'The designs did not load. Reload the page to try again.'; return; }
+    state.round = state.manifest.rounds[0];
+    render();
+    const claude = window.claude;
+    if (!claude || !claude.use) return;
+    const [user, db] = await Promise.all([claude.use('user'), claude.use('db')]);
+    if (user) { try { state.uid = await user.id(); } catch {} }
+    state.db = db;
+    if (!state.uid || !db) { $('whoami').textContent = 'Viewing only'; render(); return; }
+    $('whoami').textContent = 'Votes are saved to your account';
+    try {
+      const snap = await db.doc('votes/' + state.uid).get();
+      if (snap.exists) {
+        state.docExists = true;
+        const v = (snap.data() || {}).v || {};
+        for (const rec of Object.values(v)) if (rec && rec.id) state.votes[rec.id] = rec;
+      }
+    } catch {}
+    state.i = firstOpen();
+    render();
+  }
+  boot();
+})();
+</script>

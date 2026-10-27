@@ -171,3 +171,77 @@ class LearnedGuardTests(unittest.TestCase):
         for e in design['elements']:
             e.update(x=e['x'] * 0.3 + 300, y=e['y'] * 0.3 + 300, width=e['width'] * 0.3, height=e['height'] * 0.3)
         self.assertLess(_content_share(design), 0.5 * _content_share(source))
+
+
+class SolverTests(unittest.TestCase):
+    def _sample(self):
+        case = json.loads(Path('input/chameleon_sample_level2_core.json').read_text())
+        return case['source']
+
+    def test_text_options_cover_single_words_and_tracking(self):
+        from engine.retarget.solver import text_options
+        word = {'id': 't', 'type': 'text', 'content': 'Merry', 'font_family': 'Inter', 'font_size': 40, 'width': 200, 'height': 50}
+        opts = text_options(word, 40, 4)
+        self.assertEqual([o.lines for o in opts], [1])
+        long = dict(word, content='Spring cleaning day at the park this Sunday')
+        self.assertGreater(len(text_options(long, 30, 6)), 2)
+        tracked = dict(long, letter_spacing=8)
+        o1, o2 = text_options(long, 30, 1)[0], text_options(tracked, 30, 1)[0]
+        self.assertGreater(o2.b - o1.b, 8 * 10)  # tracking is a constant width term, not scaled
+
+    @unittest.skipUnless(weights_path().exists(), 'retarget weights not exported')
+    def test_solved_layout_passes_the_hard_rules(self):
+        from engine.analysis import analyze
+        from engine.invariants import passes, validate
+        from engine.retarget.infer import predict_dist
+        from engine.retarget.propose import propose, records
+        from engine.retarget.solver import Problem, solve
+        source = self._sample(); A = analyze(source); recs = records(source, A)
+        for target in ({'width': 1080, 'height': 1080}, {'width': 1200, 'height': 628}):
+            W, H = source['canvas']['width'], source['canvas']['height']
+            boxes, probs, _ = predict_dist(recs, W, H, target['width'], target['height'], k=1)
+            warm = dict(propose(source, target, A, k=1))['0']
+            sol = solve(Problem(source, target, A, recs), boxes[0], probs[0], time_limit=0.5, hint=warm, workers=2)
+            self.assertIsNotNone(sol.design)
+            self.assertTrue(passes(validate(source, sol.design)), validate(source, sol.design))
+            self.assertEqual([e['id'] for e in sol.design['elements']], [e['id'] for e in source['elements']])
+
+    def test_strip_composer_lays_content_along_the_strip(self):
+        from engine.analysis import analyze
+        from engine.canonical import rotated_extent
+        from engine.retarget.propose import records
+        from engine.retarget.solver import Problem
+        from engine.retarget.strip import compose, is_strip, long_axis
+        self.assertTrue(is_strip({'width': 800, 'height': 90})); self.assertTrue(is_strip({'width': 90, 'height': 800}))
+        self.assertFalse(is_strip({'width': 1200, 'height': 628}))
+        self.assertEqual((long_axis({'width': 800, 'height': 90}), long_axis({'width': 90, 'height': 800})), (0, 1))
+        source = self._sample(); A = analyze(source)
+        target = {'width': 970, 'height': 90}
+        d = compose(Problem(source, target, A, records(source, A)))
+        self.assertEqual(len(d['elements']), len(source['elements']))
+        for e in d['elements']:
+            b = rotated_extent(e)
+            self.assertGreaterEqual(b.x, -0.5); self.assertLessEqual(b.x1, 970.5)
+            self.assertGreaterEqual(b.y, -0.5); self.assertLessEqual(b.y1, 90.5)
+
+    def test_strips_keep_a_lower_content_share_floor(self):
+        from engine.pipeline import _collapse_floor
+        self.assertEqual(_collapse_floor({'canvas': {'width': 800, 'height': 90}}), .3)
+        self.assertEqual(_collapse_floor({'canvas': {'width': 1080, 'height': 1080}}), .5)
+
+
+class AppealTests(unittest.TestCase):
+    @unittest.skipUnless(Path('engine/models/appeal_features.joblib').exists(), 'appeal model not trained')
+    def test_appeal_score_is_a_probability_and_prefers_the_intact_design(self):
+        from engine.analysis import analyze
+        from engine.retarget.appeal import score, source_info
+        case = json.loads(Path('input/chameleon_sample_level2_core.json').read_text())
+        source = case['source']; A = analyze(source); si = source_info(source, A)
+        good = score(source, source, A, si)
+        bad = json.loads(json.dumps(source))
+        for e in bad['elements']:
+            if e['type'] == 'text':
+                e['x'] = 0; e['y'] = 0  # all copy piled into the corner
+        worse = score(source, bad, A, si)
+        self.assertTrue(0.0 <= good <= 1.0 and 0.0 <= worse <= 1.0)
+        self.assertGreater(good, worse)

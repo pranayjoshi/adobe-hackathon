@@ -80,8 +80,11 @@ class Model:
             x = self._block(x, p['enc'][str(i)], mask)
         return _ln(x, p['enc_ln'])[0]
 
-    def sample(self, types, feats, glob, k=8, temperature=0.8, top_p=0.9, seed=0):
-        """Return k bin arrays [n, 5]; sample 0 is greedy, the rest nucleus samples."""
+    def sample(self, types, feats, glob, k=8, temperature=0.8, top_p=0.9, seed=0, return_probs=False):
+        """Return k bin arrays [n, 5]; sample 0 is greedy, the rest nucleus samples.
+
+        With return_probs, also each row's per-field distribution [k, n, 5, N_BINS] (temperature 1),
+        conditioned on that row's own earlier choices: the solver's likelihood costs."""
         p = self.p
         rng = np.random.default_rng(seed)
         mem = self.encode(types, feats, glob)
@@ -93,6 +96,7 @@ class Model:
         prev = np.zeros((k, n, p['el_proj']['weight'].shape[0]), np.float32)
         prev[:, 0] = p['value_emb']['weight'][BOS]
         offs = np.arange(N_FIELDS) * N_BINS
+        probs = np.zeros((k, n, N_FIELDS, N_BINS), np.float32) if return_probs else None
         for j in range(n):
             x = el_state[None, :j + 1] + prev[:, :j + 1]
             causal = np.tril(np.ones((j + 1, j + 1), bool))[None, None]
@@ -102,13 +106,16 @@ class Model:
             for f in range(N_FIELDS):
                 hp = p['heads'][str(f)]
                 logits = _lin(_gelu(_lin(z, hp['0'])), hp['2'])
+                if return_probs:
+                    e = np.exp(logits - logits.max(-1, keepdims=True))
+                    probs[:, j, f] = e / e.sum(-1, keepdims=True)
                 choice = self._pick(logits, temperature, top_p, rng)
                 bins[:, j, f] = choice
                 if f < N_FIELDS - 1:
                     z = z + p['in_emb'][str(f)]['weight'][choice]
             if j + 1 < n:
                 prev[:, j + 1] = p['value_emb']['weight'][bins[:, j] + offs].sum(1)
-        return bins
+        return (bins, probs) if return_probs else bins
 
     @staticmethod
     def _pick(logits, temperature, top_p, rng):
@@ -136,6 +143,17 @@ def load(path=None):
     if path not in _MODELS:
         _MODELS[path] = Model(path)
     return _MODELS[path]
+
+
+def predict_dist(records, W, H, tW, tH, k=4, temperature=0.8, top_p=0.9, seed=0, model=None, task=TASK_PAIR):
+    """Like predict, plus per-row field distributions [k, n, 5, N_BINS] for constrained decoding."""
+    model = model or load()
+    if task == TASK_ARRANGE:
+        records, W, H = centered(records, W, H, tW, tH), tW, tH
+    types, feats, glob = encode_source(records, W, H, tW, tH, task)
+    bins, probs = model.sample(types, feats, glob, k, temperature, top_p, seed, return_probs=True)
+    boxes = [[decode_target(b, r, W, H, tW, tH) for b, r in zip(sample, records)] for sample in bins]
+    return boxes, probs, (records, W, H)
 
 
 def predict(records, W, H, tW, tH, k=8, temperature=0.8, top_p=0.9, seed=0, model=None, task=TASK_PAIR):
