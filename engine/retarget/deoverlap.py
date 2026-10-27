@@ -25,7 +25,17 @@ from ..canonical import rotated_extent, union_all
 
 ALLOWANCE = 0.02  # collision check tolerates +0.025 overlap fraction; stay inside it
 GRAPHIC_MIN = 0.55  # graphics give up space first, down to this share of their predicted size
+MARGIN = 0.04  # safe margin for copy, share of the short side (5th percentile of Crello designers' text: 0.038)
+DECOR_MIN = 0.01  # decorations at least this share of the canvas take part in overlap removal
+COPY_MIN = 0.3  # then all units in conflict; the engine vetoes compositions that collapse
 SWITCH_PENALTY = 1.5  # prefer the source's separating axis unless the other is clearly cheaper
+
+
+def margin(box, W, H, tW, tH):
+    """Safe edge margin for copy with source box [x, y, w, h]: MARGIN of the target's short side,
+    or less when the source itself placed the copy nearer the edge (an intentional bleed)."""
+    gap = min(box[0], box[1], W - box[0] - box[2], H - box[1] - box[3])
+    return min(MARGIN * min(tW, tH), max(0.0, gap) / min(W, H) * min(tW, tH))
 
 
 def merge(groups):
@@ -50,15 +60,18 @@ def _inside(e, b):
     return ix * iy / max(_area(e), 1e-6)
 
 
-def backed(source):
+def backed(source, loose=False):
     """Groups of a backing (badge, bar, panel) and what sits on it in the source.
 
     A backing is a graphic drawn beneath, at most a quarter of the canvas. Copy mostly inside it
     and filling a fifth of it or more (a label on a badge or bar, not a line on a large photo), and
     small graphics fully on it, belong to it: moving them apart breaks the design. Each element
     attaches to its smallest backing. Looser definitions (half-canvas panels, any text share) bound
-    too much and lost designer agreement on held-out designs.
+    too much and lost designer agreement on held-out designs, so `loose` (a backing up to three
+    quarters of the canvas, copy of any size on it) is only offered as a fallback candidate for
+    copy that would otherwise lose its support or contrast.
     """
+    max_area, text_share = (0.75, 0.0) if loose else (0.25, 0.2)
     W, H = float(source['canvas']['width']), float(source['canvas']['height'])
     els = source['elements']
     pairs = []
@@ -66,10 +79,10 @@ def backed(source):
         best = None
         for b in els:
             if b is e or b['type'] == 'text' or b.get('z_index', 0) >= e.get('z_index', 0) \
-                    or _area(b) > 0.25 * W * H or b.get('rotation') or e.get('rotation'):
+                    or _area(b) > max_area * W * H or b.get('rotation') or e.get('rotation'):
                 continue
             if e['type'] == 'text':
-                ok = _area(b) >= _area(e) and _inside(e, b) >= 0.75 and _area(e) >= 0.2 * _area(b)
+                ok = _area(b) >= _area(e) and _inside(e, b) >= 0.75 and _area(e) >= text_share * _area(b)
             else:
                 # Specks (dots, sparkles) stay free so overlap removal can nudge them aside.
                 ok = _area(e) <= 0.5 * _area(b) and _inside(e, b) >= 0.9 and _area(e) >= 0.002 * W * H
@@ -126,7 +139,7 @@ def _relation(sa, sb, ta, tb, before):
     return axis, s, allowed
 
 
-def _solve(units, cons, W, H, gap):
+def _solve(units, cons, W, H, gap, margins):
     """Smallest area-weighted unit translations meeting block separations and the canvas.
 
     cons: (unit of a, unit of b, box of a, box of b, axis, a_first, allowed overlap length).
@@ -154,8 +167,9 @@ def _solve(units, cons, W, H, gap):
     for k, (_, b) in enumerate(units):
         for axis, size in ((0, W), (1, H)):
             row = np.zeros(2 * n); row[2 * k + axis] = 1
-            A_rows.append(row); lb.append(min(0.0, -b[axis]))           # stay right/below 0
-            A_rows.append(-row); lb.append(min(0.0, b[axis] + b[axis + 2] - size))  # and inside
+            m = margins[k]  # stay inside the canvas, copy inside its safe margin
+            A_rows.append(row); lb.append(min(0.0, m - b[axis]))
+            A_rows.append(-row); lb.append(min(0.0, b[axis] + b[axis + 2] - (size - m)))
     Am, lbv = np.array(A_rows), np.array(lb)
     res = minimize(f, np.zeros(2 * n), jac=g, method='SLSQP',
                    constraints=[{'type': 'ineq', 'fun': lambda v: Am @ v - lbv, 'jac': lambda v: Am}],
@@ -190,7 +204,7 @@ def _shrink(design, A, ids, k):
     return True
 
 
-def deoverlap(source, design, A, rounds=6, shrink_steps=10):
+def deoverlap(source, design, A, rounds=6, shrink_steps=10, loose=False):
     """Return a copy of design with new block collisions removed, keeping source order.
 
     Collisions are measured per analysis block, as the engine's check does; blocks that belong
@@ -201,15 +215,26 @@ def deoverlap(source, design, A, rounds=6, shrink_steps=10):
     gap = 0.012 * min(W, H)
     ids = {e['id'] for e in source['elements']}
     blocks = [b for b in ([i for i in blk.ids if i in ids] for blk in A.all_blocks()) if b]
-    groups = merge(blocks + backed(source))
+    # Large graphics the analysis treats as decoration (a panel, a photo strip) also keep their
+    # source overlaps: otherwise a panel can slide over the photo it sat beside.
+    W0, H0 = float(source['canvas']['width']), float(source['canvas']['height'])
+    seen = {i for b in blocks for i in b}
+    blocks += [[e['id']] for e in source['elements'] if e['id'] not in seen and e['type'] != 'text'
+               and DECOR_MIN * W0 * H0 <= _area(e) < 0.9 * W0 * H0 and not e.get('rotation')]
+    groups = merge(blocks + backed(source, loose))
     owner = [next(u for u, grp in enumerate(groups) if set(b) <= set(grp)) for b in blocks]
     src = [b for _, b in _boxes(blocks, source)]
+    src_groups = _boxes(groups, source)
+    sW, sH = float(source['canvas']['width']), float(source['canvas']['height'])
+    by0 = {e['id']: e for e in source['elements']}
     before = {(k, l): _frac(src[k], src[l]) for k in range(len(blocks)) for l in range(k + 1, len(blocks))
               if owner[k] != owner[l]}
     scale = {}
     for _ in range(shrink_steps + 1):
         units = _boxes(groups, design)
         cur = [b for _, b in _boxes(blocks, design)]
+        margins = [margin(sg, sW, sH, W, H) if any(by0[i]['type'] == 'text' for i in ids) else 0.0
+                   for (ids, _), (_, sg) in zip(units, src_groups)]
         cons, active, ok = [], set(), True
         d = np.zeros((len(units), 2))
         for _ in range(rounds):
@@ -221,20 +246,23 @@ def deoverlap(source, design, A, rounds=6, shrink_steps=10):
             for k, l in new:
                 active.add((k, l))
                 cons.append((owner[k], owner[l], cur[k], cur[l], *_relation(src[k], src[l], cur[k], cur[l], before[k, l])))
-            d, ok = _solve(units, cons, W, H, gap)
+            d, ok = _solve(units, cons, W, H, gap, margins)
             if not ok:
                 break
         if ok:
             _move(design, units, d)
             return design
         # No translation fits: shrink the graphics in conflict (to GRAPHIC_MIN of their size),
-        # then the copy (never below its readable floor), and try again.
+        # then everything in conflict together (to COPY_MIN; copy never below its readable floor),
+        # and try again. Past that the overlap stays and the engine's collision check vetoes it.
         by = {e['id']: e for e in design['elements']}
         involved = [units[u][0] for u in sorted({u for c in cons for u in c[:2]})]
-        graphics = [ids for ids in involved if not any(by[i]['type'] == 'text' for i in ids)
-                    and scale.get(tuple(ids), 1.0) * 0.9 >= GRAPHIC_MIN]
+        room = lambda ids, floor: scale.get(tuple(ids), 1.0) * 0.9 >= floor
+        has_text = lambda ids: any(by[i]['type'] == 'text' for i in ids)
+        graphics = [ids for ids in involved if not has_text(ids) and room(ids, GRAPHIC_MIN)]
+        rest = [ids for ids in involved if room(ids, COPY_MIN)]
         shrunk = False
-        for ids in graphics or [ids for ids in involved if ids not in graphics]:
+        for ids in graphics or rest:
             if _shrink(design, A, ids, 0.9):
                 shrunk = True
                 scale[tuple(ids)] = scale.get(tuple(ids), 1.0) * 0.9

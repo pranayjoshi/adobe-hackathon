@@ -43,8 +43,9 @@ class RetargetProposalTests(unittest.TestCase):
         from engine.retarget.propose import propose
         case = json.loads(Path('input/chameleon_sample_level2_core.json').read_text())
         source, target = case['source'], {'width': 728, 'height': 90}
-        designs = propose(source, target, analyze(source), k=3)
-        self.assertEqual(len(designs), 3)
+        tagged = propose(source, target, analyze(source), k=3)
+        self.assertEqual([t for t, _ in tagged if t != '0_bound'], ['0', '1', '2'])
+        designs = [d for _, d in tagged]
         by_id = {e['id']: e for e in source['elements']}
         for d in designs:
             self.assertEqual(d['canvas'], target)
@@ -141,3 +142,32 @@ class BackingTests(unittest.TestCase):
         b, t = out['badge'], out['label']
         self.assertTrue(b['x'] <= t['x'] and t['x'] + t['width'] <= b['x'] + b['width'] + 0.5)
         self.assertTrue(b['y'] <= t['y'] and t['y'] + t['height'] <= b['y'] + b['height'] + 0.5)
+
+
+class LearnedGuardTests(unittest.TestCase):
+    def test_copy_margin_is_four_percent_unless_the_source_bled(self):
+        from engine.retarget.deoverlap import margin
+        self.assertAlmostEqual(margin([100, 100, 200, 50], 1000, 1000, 1600, 400), 16.0)
+        self.assertAlmostEqual(margin([5, 100, 200, 50], 1000, 1000, 1600, 400), 2.0)  # bleed kept, scaled
+
+    def _pair(self):
+        el = lambda i, x, y, w, h, z: {'id': i, 'type': 'shape', 'x': x, 'y': y, 'width': w, 'height': h, 'z_index': z,
+                                       'shape_type': 'rectangle', 'fill_color': '#000000'}
+        source = {'canvas': {'width': 1000, 'height': 1000},
+                  'elements': [el('photo', 0, 0, 1000, 600, 0), el('panel', 0, 620, 1000, 380, 1)]}
+        return source, json.loads(json.dumps(source))
+
+    def test_panel_slid_over_a_photo_is_new_occlusion(self):
+        from engine.pipeline import _new_occlusion
+        source, design = self._pair()
+        self.assertEqual(_new_occlusion(source, design), [])
+        design['elements'][1].update(y=200)
+        self.assertEqual(_new_occlusion(source, design), ['photo'])
+
+    def test_collapsed_content_share(self):
+        from engine.pipeline import _content_share
+        source, design = self._pair()
+        self.assertAlmostEqual(_content_share(source), 1.0)
+        for e in design['elements']:
+            e.update(x=e['x'] * 0.3 + 300, y=e['y'] * 0.3 + 300, width=e['width'] * 0.3, height=e['height'] * 0.3)
+        self.assertLess(_content_share(design), 0.5 * _content_share(source))

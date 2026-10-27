@@ -244,7 +244,7 @@ def _generate_legacy(source, target, emphasis="balanced", top_k=3, analysis=None
         # Verify newly promoted winners too: pixel evidence can change ranking.
         verified_ids=set()
         while True:
-            results=_prefer_learned(results,rank)
+            results=_prefer_learned(results,rank,source)
             pending=[r for r in results[:max(1,min(3,top_k))] if r['id'] not in verified_ids]
             if not pending:break
             for r in pending:
@@ -254,7 +254,7 @@ def _generate_legacy(source, target, emphasis="balanced", top_k=3, analysis=None
     for r in results:
         r["trace"].append({"roles":role_status,"events":events,"elapsed_ms":round((time.monotonic()-started)*1000)})
     results.sort(key=rank,reverse=True)
-    results=_prefer_learned(results,rank)
+    results=_prefer_learned(results,rank,source)
     if all_candidates:return results
     lead=results[:1] if results and results[0].get('preferred_learned') else []
     if _provider_workflow(options):
@@ -280,25 +280,65 @@ def _generate_legacy(source, target, emphasis="balanced", top_k=3, analysis=None
 LEARNED_SOFT_DEFECTS={'scene_displacement'}
 
 
-def _learned_eligible(r):
-    """A learned layout is used unless a hard check vetoes it."""
+def _content_share(design):
+    """Share of the canvas spanned by the content (backgrounds that cover the canvas excluded)."""
+    from .canonical import rotated_extent, union_all
+    cw,ch=float(design['canvas']['width']),float(design['canvas']['height'])
+    boxes=[rotated_extent(e).clip(cw,ch) for e in design['elements']]
+    boxes=[b for b in boxes if b.w*b.h<.97*cw*ch and b.w>0 and b.h>0]
+    return union_all(boxes).area/(cw*ch) if boxes else 1.0
+
+
+def _new_occlusion(source,design,limit=.25):
+    """Ids of elements newly hidden: covered by later-drawn non-text elements over `limit` more of
+    their area than in the source. Covers the decorations the block collision check skips (a
+    panel slid over a portrait). Canvas-covering backgrounds are not occluders."""
+    from .canonical import rotated_extent
+    def covered(d):
+        cw,ch=float(d['canvas']['width']),float(d['canvas']['height'])
+        els=sorted(d['elements'],key=lambda e:e.get('z_index',0))
+        box={e['id']:rotated_extent(e) for e in els}
+        out={}
+        for k,e in enumerate(els):
+            b=box[e['id']]
+            if b.area<=0 or b.area>=.97*cw*ch:continue
+            # Largest single occluder: union areas of overlapping occluders would double count.
+            out[e['id']]=max([box[o['id']].intersection_area(b)/b.area for o in els[k+1:]
+                              if o['type']!='text' and box[o['id']].area<.97*cw*ch],default=0.0)
+        return out
+    before,after=covered(source),covered(design)
+    return [i for i,f in after.items() if f>before.get(i,0.0)+limit]
+
+
+def _learned_eligible(r,source=None):
+    """A learned layout is used unless a hard check vetoes it, its content has collapsed into a
+    small part of the canvas (under half the share the source used), or it newly hides an
+    element under another."""
     from .refine import blocking
     if not (r['valid'] and r.get('rubric',{}).get('gate') and blocking(r)==0):return False
+    if source is not None and (_content_share(r['design'])<.5*_content_share(source) or _new_occlusion(source,r['design'])):
+        return False
     defects={k for k,v in r['quality']['defects'].items() if v}
     return not (defects-LEARNED_SOFT_DEFECTS) and not r['diagnostics'].get('collisions') and not r['diagnostics'].get('contrast_regressions')
 
 
-def _prefer_learned(results,rank):
+def _prefer_learned(results,rank,source=None):
     """Designer-trained layouts win over templates whenever they pass every hard check; among
     them the rubric decides. Otherwise the existing ranking stands."""
     for r in results:r.pop('preferred_learned',None)
-    learned=[r for r in results if 'learned_' in r['template'] and _learned_eligible(r)]
+    if source is not None:
+        # Learned layouts that collapse or hide an element rank below every other candidate;
+        # the rubric does not see those faults.
+        bad=lambda r:'learned_' in r['template'] and (_content_share(r['design'])<.5*_content_share(source) or bool(_new_occlusion(source,r['design'])))
+        results=[r for r in results if not bad(r)]+[r for r in results if bad(r)]
+    learned=[r for r in results if 'learned_' in r['template'] and _learned_eligible(r,source)]
     if not learned:return results
     # Trust the model's own most likely layout first (greedy sample 0, unrepaired), then its
-    # repaired form, then other samples; engine refinements of a learned layout come last.
+    # repaired form, then its copy-bound fallback, then other samples; engine refinements of a
+    # learned layout come last.
     def order(r):
         t=r['template']
-        return (t.startswith(('refined_','solver_')),not t.startswith('learned_0'),not t.endswith('_raw'),t)
+        return (t.startswith(('refined_','solver_')),not t.startswith('learned_0'),'_bound' in t,not t.endswith('_raw'),t)
     best=min(learned,key=order);best['preferred_learned']=True
     return [best]+[r for r in results if r is not best]
 

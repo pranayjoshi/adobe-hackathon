@@ -15,7 +15,7 @@ from ..blocks import FLOORS
 from ..canonical import backdrop_patch, rotated_extent
 from ..scene import background_cover_allowed
 from ..typography import fit_text, measure
-from .deoverlap import backed, deoverlap, merge
+from .deoverlap import backed, deoverlap, margin, merge
 from .features import BACKGROUND, IMAGE, MAX_ELEMENTS, SVG, TEXT
 from .infer import predict, weights_path
 
@@ -57,7 +57,7 @@ def records(source, A):
     return out
 
 
-def _units(source, A):
+def _units(source, A, loose=False):
     """Multi-element units that must move rigidly: analysis blocks, explicit group_ids, and
     backings with the copy and small graphics that sit on them."""
     units, claimed = [], set()
@@ -70,13 +70,18 @@ def _units(source, A):
         if el.get('group_id') and el['id'] not in claimed:
             groups.setdefault(el['group_id'], []).append(el['id'])
     units += [ids for ids in groups.values() if len(ids) > 1]
-    return [u for u in merge(units + backed(source)) if len(u) > 1]
+    return [u for u in merge(units + backed(source, loose)) if len(u) > 1]
 
 
 def _union(boxes):
     x0 = min(b[0] for b in boxes); y0 = min(b[1] for b in boxes)
     x1 = max(b[0] + b[2] for b in boxes); y1 = max(b[1] + b[3] for b in boxes)
     return x0, y0, x1 - x0, y1 - y0
+
+
+def _clamp(v, lo, hi, fallback):
+    """v clamped to [lo, hi]; fallback when the range is empty."""
+    return fallback if lo > hi else min(max(v, lo), hi)
 
 
 def _floor(A, el):
@@ -99,13 +104,14 @@ def _contain_rotated(el, x, y, w, h, tW, tH):
     return x, y, w, h
 
 
-def materialize(source, target, A, recs, pred):
+def materialize(source, target, A, recs, pred, loose=False):
     W, H = float(source['canvas']['width']), float(source['canvas']['height'])
     tW, tH = float(target['width']), float(target['height'])
     by_id = {e['id']: e for e in source['elements']}
     box = {}
     fs = {}
     anchor = {}
+    edge = {}  # copy in a unit uses the unit's margin
     covers = []
     for r, p in zip(recs, pred):
         el = by_id[r['id']]
@@ -130,7 +136,7 @@ def materialize(source, target, A, recs, pred):
             b = backdrop_patch(el, tW, tH)
             box[r['id']] = (b['x'], b['y'], b['width'], b['height'])
     # Rigid units: keep the source arrangement, scaled into the predicted union.
-    for ids in _units(source, A):
+    for ids in _units(source, A, loose):
         ids = [i for i in ids if i in box]
         if len(ids) < 2:
             continue
@@ -147,15 +153,18 @@ def materialize(source, target, A, recs, pred):
         s = max([s] + [_floor(A, e) / max(float(e['font_size']), 1.0) for e in texts])
         s = min(s, tW / sb[2], tH / sb[3])
         cx, cy = pb[0] + pb[2] / 2, pb[1] + pb[3] / 2
-        # The whole unit goes on the canvas (per-element clamping later would pull it apart).
-        cx = min(max(cx, sb[2] * s / 2), tW - sb[2] * s / 2)
-        cy = min(max(cy, sb[3] * s / 2), tH - sb[3] * s / 2)
+        # The whole unit goes on the canvas, copy inside its safe margin (per-element clamping
+        # later would pull it apart).
+        m = margin(sb, W, H, tW, tH) if texts else 0.0
+        cx = _clamp(cx, m + sb[2] * s / 2, tW - m - sb[2] * s / 2, tW / 2)
+        cy = _clamp(cy, m + sb[3] * s / 2, tH - m - sb[3] * s / 2, tH / 2)
         for i in ids:
             e = by_id[i]
             box[i] = (cx + (float(e['x']) - sb[0] - sb[2] / 2) * s, cy + (float(e['y']) - sb[1] - sb[3] / 2) * s,
                       float(e['width']) * s, float(e['height']) * s)
             if e['type'] == 'text':
                 fs[i] = float(e['font_size']) * s
+                edge[i] = m
                 # Re-measured copy grows away from the unit's centre, so lines stacked against
                 # each other (or against their badge's edge) keep the source's spacing.
                 anchor[i] = 'bottom' if float(e['y']) + float(e['height']) / 2 < sb[1] + sb[3] / 2 else 'top'
@@ -164,7 +173,8 @@ def materialize(source, target, A, recs, pred):
         out = copy.deepcopy(el)
         x, y, w, h = box.get(el['id'], (float(el['x']) * tW / W, float(el['y']) * tH / H, float(el['width']) * tW / W, float(el['height']) * tH / H))
         if el['type'] == 'text':
-            w = min(max(w, 1.0), tW)
+            m = edge.get(el['id'], margin((float(el['x']), float(el['y']), float(el['width']), float(el['height'])), W, H, tW, tH))
+            w = min(max(w, 1.0), tW - 2 * m)
             size = max(_floor(A, el), round(fs.get(el['id'], float(el['font_size']))))
             size = min(size, int(el['font_size'] * 4) + 1)
             # Height budget: the predicted box, or the source's line count at the predicted size
@@ -178,8 +188,9 @@ def materialize(source, target, A, recs, pred):
             h = fit.height
             y = {'top': top, 'bottom': bottom - h}.get(anchor.get(el['id']), (top + bottom - h) / 2)
             out['font_size'] = int(fit.font_size)
-            # Copy stays fully on the canvas.
-            x = min(max(x, 0.0), tW - w); y = min(max(y, 0.0), tH - h)
+            # Copy stays fully on the canvas, inside its safe margin when it fits.
+            x = _clamp(x, m, tW - m - w, min(max(x, 0.0), tW - w))
+            y = _clamp(y, m, tH - m - h, min(max(y, 0.0), tH - h))
         elif el['id'] not in crop:
             # Nothing may leave the canvas: shrink uniformly if needed, then shift inside.
             k = min(1.0, tW / max(w, 1e-6), tH / max(h, 1e-6))
@@ -198,13 +209,20 @@ def materialize(source, target, A, recs, pred):
 
 
 def propose(source, target, A, k=6, temperature=0.8, seed=0):
-    """Return up to k learned candidate designs (sample 0 is the model's greedy decode)."""
+    """Up to k learned candidates as (tag, design); sample 0 is the model's greedy decode.
+
+    The greedy layout also comes in a `bound` form whose copy stays with any graphic it sat on
+    (photos and panels included). The engine's checks decide whether it is needed.
+    """
     if not available() or len(source['elements']) > MAX_ELEMENTS:
         return []
     recs = records(source, A)
     W, H = float(source['canvas']['width']), float(source['canvas']['height'])
     preds = predict(recs, W, H, float(target['width']), float(target['height']), k=k, temperature=temperature, seed=seed)
-    return [deoverlap(source, materialize(source, target, A, recs, p), A) for p in preds]
+    out = [(str(i), deoverlap(source, materialize(source, target, A, recs, p), A)) for i, p in enumerate(preds)]
+    if preds and backed(source, True) != backed(source):
+        out.insert(1, ('0_bound', deoverlap(source, materialize(source, target, A, recs, preds[0], loose=True), A, loose=True)))
+    return out
 
 
 def candidates(source, target, A, options, events):
@@ -214,8 +232,8 @@ def candidates(source, target, A, options, events):
             or source['canvas'] == target:
         return []
     try:
-        return [(f'learned_{i}', 'Learned layout', 'Predicted by the retargeting model trained on designer resizes', d)
-                for i, d in enumerate(propose(source, target, A, k=int(options.get('learned_samples', 6))))]
+        return [(f'learned_{tag}', 'Learned layout', 'Predicted by the retargeting model trained on designer resizes', d)
+                for tag, d in propose(source, target, A, k=int(options.get('learned_samples', 6)))]
     except (ValueError, OSError, KeyError) as exc:
         events.append({'learned_retarget': f'unavailable: {exc}'})
         return []

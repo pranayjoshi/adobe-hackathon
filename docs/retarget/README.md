@@ -80,3 +80,27 @@ The model-alone top layout was also scored on the 32 held-out image designs that
 | Extreme fixes | 0.384 / 0.275 | 0.140 / 0.159 | 6 / 5 |
 
 A looser backing (half-canvas panels, any text share) bound too much: rule failures went from 6 to 11 on the 50 cases.
+
+## Fallbacks and safe margins (v4 proposals, same weights)
+
+Raw numbers: [`fallbacks-margins-v4.json`](fallbacks-margins-v4.json).
+
+- **Copy-bound fallback:** the greedy layout also comes as `learned_0_bound`, where copy stays with any graphic it sat on, photos and panels included. It ranks after the tight greedy layout, so it is used only when that fails a check. This is what lets 04 (a portrait poster turned into a banner) use a learned layout.
+- **Safe margins:** copy keeps 4% of the short side from the edges, which is the 5th percentile of Crello designers' text. Copy the source already placed nearer an edge keeps its proportional gap.
+- **Decorations in overlap removal:** panels and strips of at least 1% of the canvas take part, so they keep their source overlap with photos.
+- **New engine vetoes for learned layouts:**
+  - content that collapsed to under half the canvas share the source used;
+  - an element newly hidden under another, by more than 25% of its area.
+
+  Learned layouts failing either check rank below every template.
+
+| Engine + model, 50 rendered cases | IoU | Center err | Font err | Order agree | Learned picks | Valid |
+|---|---|---|---|---|---|---|
+| Baseline v2 | 0.366 | 0.071 | 0.201 | 0.924 | 42 | 50 / 50 |
+| Extreme fixes (v3) | 0.375 | 0.066 | 0.173 | 0.928 | 45 | 50 / 50 |
+| Fallbacks and margins (v4) | **0.378** | **0.064** | 0.174 | **0.931** | 46 | 50 / 50 |
+
+Still weak:
+- **33:** the full photo plus its panel cannot fit side by side without a crop, so it falls back to the letterboxed source frame.
+- **32:** the 4.5× skyscraper ends up with small badge copy.
+- **01:** grey bands remain because the inset panel image cannot stretch.

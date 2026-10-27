@@ -186,7 +186,7 @@ def main():
                 for k, v in m.items():
                     scores[name][k].append(v)
                 entry[name]['metrics'] = {k: round(float(v), 3) for k, v in m.items()}
-        g = propose(src, target, Ana, k=1) if 'model_only' in methods else []
+        g = [d for _, d in propose(src, target, Ana, k=1)] if 'model_only' in methods else []
         if g:
             imgs.append(render(g[0], out / 'png' / f'{tag}-model.png'))
             m = metrics(as_records(g[0], src, A, p['map']), ref_recs, B['W'], B['H'])

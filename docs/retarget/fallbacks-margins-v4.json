@@ -1,0 +1,1946 @@
+{
+ "rendered_50_cases": {
+  "summary": {
+   "engine_before": {
+    "iou": 0.2574,
+    "center_err": 0.1018,
+    "size_err": 0.7249,
+    "font_err": 0.3275,
+    "order_agree": 0.8712,
+    "defects": 0.0768,
+    "n": 50
+   },
+   "engine_model": {
+    "iou": 0.3775,
+    "center_err": 0.0635,
+    "size_err": 0.4714,
+    "font_err": 0.1744,
+    "order_agree": 0.9309,
+    "defects": 0.0897,
+    "n": 50
+   },
+   "model_only": {
+    "iou": 0.3883,
+    "center_err": 0.0559,
+    "size_err": 0.3871,
+    "font_err": 0.1401,
+    "order_agree": 0.9385,
+    "defects": 0.0764,
+    "n": 50
+   }
+  },
+  "cases": [
+   {
+    "case": "00",
+    "id": "5900845895a7a863ddcd260c",
+    "target_id": "590079c695a7a863ddcd25e2",
+    "title": "The Kindest Heart Charity Work",
+    "from": [
+     1200.0,
+     628.0
+    ],
+    "to": [
+     336.0,
+     280.0
+    ],
+    "engine_before": {
+     "template": "refined_stack_source",
+     "valid": true,
+     "metrics": {
+      "iou": 0.213,
+      "center_err": 0.162,
+      "size_err": 1.031,
+      "font_err": 0.491,
+      "order_agree": 0.714,
+      "defects": 0.0
+     }
+    },
+    "engine_model": {
+     "template": "learned_3",
+     "valid": true,
+     "metrics": {
+      "iou": 0.117,
+      "center_err": 0.111,
+      "size_err": 0.952,
+      "font_err": 0.338,
+      "order_agree": 0.893,
+      "defects": 0.0
+     }
+    }
+   },
+   {
+    "case": "01",
+    "id": "5954befc95a7a863ddce15fb",
+    "target_id": "5954be9795a7a863ddce1588",
+    "title": "Puppy socialization class with Dog in pink",
+    "from": [
+     540.0,
+     810.0
+    ],
+    "to": [
+     1024.0,
+     512.0
+    ],
+    "engine_before": {
+     "template": "refined_retrieved_4",
+     "valid": true,
+     "metrics": {
+      "iou": 0.053,
+      "center_err": 0.222,
+      "size_err": 1.514,
+      "font_err": 0.422,
+      "order_agree": 1.0,
+      "defects": 0.0
+     }
+    },
+    "engine_model": {
+     "template": "learned_0_raw",
+     "valid": true,
+     "metrics": {
+      "iou": 0.236,
+      "center_err": 0.051,
+      "size_err": 0.762,
+      "font_err": 0.396,
+      "order_agree": 1.0,
+      "defects": 0.0
+     }
+    }
+   },
+   {
+    "case": "02",
+    "id": "5a217ebdd8141396fe9a2fbd",
+    "target_id": "5a216453d8141396fe9a255d",
+    "title": "happy family day poster",
+    "from": [
+     419.0,
+     298.0
+    ],
+    "to": [
+     1200.0,
+     600.0
+    ],
+    "engine_before": {
+     "template": "refined_solver_source_frame",
+     "valid": true,
+     "metrics": {
+      "iou": 0.603,
+      "center_err": 0.012,
+      "size_err": 0.221,
+      "font_err": 0.233,
+      "order_agree": 1.0,
+      "defects": 0.0
+     }
+    },
+    "engine_model": {
+     "template": "learned_0_raw",
+     "valid": true,
+     "metrics": {
+      "iou": 0.763,
+      "center_err": 0.009,
+      "size_err": 0.049,
+      "font_err": 0.069,
+      "order_agree": 1.0,
+      "defects": 0.091
+     }
+    }
+   },
+   {
+    "case": "03",
+    "id": "5df398409fea0cc374e1f9a8",
+    "target_id": "5df398469fea0cc374e21041",
+    "title": "City Guide Night Skyscraper Lights",
+    "from": [
+     540.0,
+     810.0
+    ],
+    "to": [
+     1080.0,
+     1080.0
+    ],
+    "engine_before": {
+     "template": "refined_solver_source_frame",
+     "valid": true,
+     "metrics": {
+      "iou": 0.104,
+      "center_err": 0.042,
+      "size_err": 1.143,
+      "font_err": 0.531,
+      "order_agree": 0.785,
+      "defects": 0.248
+     }
+    },
+    "engine_model": {
+     "template": "learned_0_raw",
+     "valid": true,
+     "metrics": {
+      "iou": 0.266,
+      "center_err": 0.052,
+      "size_err": 0.746,
+      "font_err": 0.172,
+      "order_agree": 0.738,
+      "defects": 0.263
+     }
+    }
+   },
+   {
+    "case": "04",
+    "id": "5952970095a7a863ddce02be",
+    "target_id": "5914298195a7a863ddcd7e0e",
+    "title": "Theater Invitation Actors in Pygmalion Performance",
+    "from": [
+     360.0,
+     504.0
+    ],
+    "to": [
+     1200.0,
+     628.0
+    ],
+    "engine_before": {
+     "template": "solver_source_frame",
+     "valid": true,
+     "metrics": {
+      "iou": 0.008,
+      "center_err": 0.217,
+      "size_err": 1.632,
+      "font_err": 0.885,
+      "order_agree": 0.919,
+      "defects": 0.0
+     }
+    },
+    "engine_model": {
+     "template": "refined_solver_learned_0_bound_raw",
+     "valid": true,
+     "metrics": {
+      "iou": 0.137,
+      "center_err": 0.108,
+      "size_err": 1.123,
+      "font_err": 0.655,
+      "order_agree": 0.955,
+      "defects": 0.0
+     }
+    }
+   },
+   {
+    "case": "05",
+    "id": "59528ea095a7a863ddcdfb5e",
+    "target_id": "5a23052dd8141396fe9a84b8",
+    "title": "Church Invitation Old Cathedral View",
+    "from": [
+     560.0,
+     315.0
+    ],
+    "to": [
+     540.0,
+     810.0
+    ],
+    "engine_before": {
+     "template": "solver_stack_center",
+     "valid": true,
+     "metrics": {
+      "iou": 0.087,
+      "center_err": 0.158,
+      "size_err": 1.309,
+      "font_err": 0.659,
+      "order_agree": 0.8,
+      "defects": 0.0
+     }
+    },
+    "engine_model": {
+     "template": "learned_0_raw",
+     "valid": true,
+     "metrics": {
+      "iou": 0.477,
+      "center_err": 0.005,
+      "size_err": 0.319,
+      "font_err": 0.173,
+      "order_agree": 1.0,
+      "defects": 0.0
+     }
+    }
+   },
+   {
+    "case": "06",
+    "id": "5a215d24d8141396fe9a1f66",
+    "target_id": "5a217f0ed8141396fe9a2fdd",
+    "title": "Christmas greeting Fir Tree Branches",
+    "from": [
+     560.0,
+     315.0
+    ],
+    "to": [
+     1080.0,
+     1080.0
+    ],
+    "engine_before": {
+     "template": "photo_scene",
+     "valid": true,
+     "metrics": {
+      "iou": 0.071,
+      "center_err": 0.049,
+      "size_err": 0.886,
+      "font_err": 0.5,
+      "order_agree": 0.974,
+      "defects": 0.095
+     }
+    },
+    "engine_model": {
+     "template": "learned_3_raw",
+     "valid": true,
+     "metrics": {
+      "iou": 0.114,
+      "center_err": 0.069,
+      "size_err": 0.417,
+      "font_err": 0.362,
+      "order_agree": 0.931,
+      "defects": 0.0
+     }
+    }
+   },
+   {
+    "case": "07",
+    "id": "5888cf1295a7a863ddcc254d",
+    "target_id": "5928049a95a7a863ddcd90db",
+    "title": "Zainab's charity Garage",
+    "from": [
+     432.0,
+     288.0
+    ],
+    "to": [
+     560.0,
+     315.0
+    ],
+    "engine_before": {
+     "template": "source_frame",
+     "valid": true,
+     "metrics": {
+      "iou": 0.388,
+      "center_err": 0.03,
+      "size_err": 0.379,
+      "font_err": 0.259,
+      "order_agree": 1.0,
+      "defects": 0.0
+     }
+    },
+    "engine_model": {
+     "template": "learned_0",
+     "valid": true,
+     "metrics": {
+      "iou": 0.502,
+      "center_err": 0.016,
+      "size_err": 0.183,
+      "font_err": 0.025,
+      "order_agree": 1.0,
+      "defects": 0.0
+     }
+    }
+   },
+   {
+    "case": "08",
+    "id": "58a30be895a7a863ddcc6b1a",
+    "target_id": "592d6a9d95a7a863ddcd9fc3",
+    "title": "Inspiration Concept with Woman Working on Typing Machine",
+    "from": [
+     1024.0,
+     512.0
+    ],
+    "to": [
+     419.0,
+     298.0
+    ],
+    "engine_before": {
+     "template": "anchored_scale1.5",
+     "valid": true,
+     "metrics": {
+      "iou": 0.086,
+      "center_err": 0.187,
+      "size_err": 1.304,
+      "font_err": 0.404,
+      "order_agree": 0.654,
+      "defects": 0.0
+     }
+    },
+    "engine_model": {
+     "template": "learned_0_raw",
+     "valid": true,
+     "metrics": {
+      "iou": 0.084,
+      "center_err": 0.066,
+      "size_err": 1.171,
+      "font_err": 0.217,
+      "order_agree": 0.887,
+      "defects": 0.006
+     }
+    }
+   },
+   {
+    "case": "09",
+    "id": "5888cdcb95a7a863ddcc2355",
+    "target_id": "5888ce9d95a7a863ddcc248a",
+    "title": "Civic Crowdfunding Platform",
+    "from": [
+     300.0,
+     250.0
+    ],
+    "to": [
+     735.0,
+     1102.0
+    ],
+    "engine_before": {
+     "template": "refined_solver_source_frame",
+     "valid": true,
+     "metrics": {
+      "iou": 0.075,
+      "center_err": 0.098,
+      "size_err": 0.957,
+      "font_err": 0.437,
+      "order_agree": 0.9,
+      "defects": 0.0
+     }
+    },
+    "engine_model": {
+     "template": "learned_0_raw",
+     "valid": true,
+     "metrics": {
+      "iou": 0.516,
+      "center_err": 0.046,
+      "size_err": 0.386,
+      "font_err": 0.184,
+      "order_agree": 0.9,
+      "defects": 0.0
+     }
+    }
+   },
+   {
+    "case": "10",
+    "id": "5954bee995a7a863ddce15e7",
+    "target_id": "59158b8b95a7a863ddcd86c3",
+    "title": "Pet Grooming Supplies Sale with animals icons",
+    "from": [
+     540.0,
+     810.0
+    ],
+    "to": [
+     336.0,
+     280.0
+    ],
+    "engine_before": {
+     "template": "refined_solver_stack_source",
+     "valid": true,
+     "metrics": {
+      "iou": 0.176,
+      "center_err": 0.145,
+      "size_err": 0.287,
+      "font_err": 0.036,
+      "order_agree": 0.733,
+      "defects": 0.0
+     }
+    },
+    "engine_model": {
+     "template": "learned_0_raw",
+     "valid": true,
+     "metrics": {
+      "iou": 0.474,
+      "center_err": 0.034,
+      "size_err": 0.365,
+      "font_err": 0.178,
+      "order_agree": 0.933,
+      "defects": 0.0
+     }
+    }
+   },
+   {
+    "case": "11",
+    "id": "592d203395a7a863ddcd9df1",
+    "target_id": "590b11c795a7a863ddcd751e",
+    "title": "Citation about green planet",
+    "from": [
+     1200.0,
+     628.0
+    ],
+    "to": [
+     300.0,
+     250.0
+    ],
+    "engine_before": {
+     "template": "refined_solver_columns_2",
+     "valid": true,
+     "metrics": {
+      "iou": 0.022,
+      "center_err": 0.36,
+      "size_err": 2.142,
+      "font_err": 0.239,
+      "order_agree": 0.473,
+      "defects": 0.0
+     }
+    },
+    "engine_model": {
+     "template": "refined_solver_columns_3",
+     "valid": true,
+     "metrics": {
+      "iou": 0.005,
+      "center_err": 0.298,
+      "size_err": 2.243,
+      "font_err": 0.241,
+      "order_agree": 0.614,
+      "defects": 0.0
+     }
+    }
+   },
+   {
+    "case": "12",
+    "id": "59b2808b1350e8329300dbc9",
+    "target_id": "595270b895a7a863ddcded18",
+    "title": "Theater Quote Woman Performing in White",
+    "from": [
+     540.0,
+     810.0
+    ],
+    "to": [
+     360.0,
+     504.0
+    ],
+    "engine_before": {
+     "template": "solver_source_frame",
+     "valid": true,
+     "metrics": {
+      "iou": 0.653,
+      "center_err": 0.008,
+      "size_err": 0.129,
+      "font_err": 0.166,
+      "order_agree": 1.0,
+      "defects": 0.01
+     }
+    },
+    "engine_model": {
+     "template": "learned_0_raw",
+     "valid": true,
+     "metrics": {
+      "iou": 0.691,
+      "center_err": 0.008,
+      "size_err": 0.049,
+      "font_err": 0.017,
+      "order_agree": 1.0,
+      "defects": 0.033
+     }
+    }
+   },
+   {
+    "case": "13",
+    "id": "5a032820d8141396fe989072",
+    "target_id": "5a0336c8d8141396fe9891ab",
+    "title": "Handmade bags Offer",
+    "from": [
+     851.0,
+     315.0
+    ],
+    "to": [
+     1500.0,
+     500.0
+    ],
+    "engine_before": {
+     "template": "split_right_scale1.5",
+     "valid": true,
+     "metrics": {
+      "iou": 0.395,
+      "center_err": 0.14,
+      "size_err": 0.806,
+      "font_err": 0.608,
+      "order_agree": 1.0,
+      "defects": 0.0
+     }
+    },
+    "engine_model": {
+     "template": "learned_0_raw",
+     "valid": true,
+     "metrics": {
+      "iou": 0.836,
+      "center_err": 0.013,
+      "size_err": 0.066,
+      "font_err": 0.045,
+      "order_agree": 1.0,
+      "defects": 0.0
+     }
+    }
+   },
+   {
+    "case": "14",
+    "id": "58b4377995a7a863ddcc9fdd",
+    "target_id": "592d1c7595a7a863ddcd99d9",
+    "title": "Home textiles global tradeshow",
+    "from": [
+     300.0,
+     250.0
+    ],
+    "to": [
+     1024.0,
+     512.0
+    ],
+    "engine_before": {
+     "template": "refined_anchored_scale0.85",
+     "valid": true,
+     "metrics": {
+      "iou": 0.077,
+      "center_err": 0.232,
+      "size_err": 0.443,
+      "font_err": 0.226,
+      "order_agree": 0.567,
+      "defects": 0.0
+     }
+    },
+    "engine_model": {
+     "template": "learned_2_raw",
+     "valid": true,
+     "metrics": {
+      "iou": 0.208,
+      "center_err": 0.078,
+      "size_err": 0.559,
+      "font_err": 0.155,
+      "order_agree": 0.955,
+      "defects": 0.0
+     }
+    }
+   },
+   {
+    "case": "15",
+    "id": "593684dd95a7a863ddcdd04e",
+    "target_id": "5936846995a7a863ddcdd030",
+    "title": "Celebrating company 10 years Anniversary",
+    "from": [
+     1296.0,
+     1728.0
+    ],
+    "to": [
+     735.0,
+     1102.0
+    ],
+    "engine_before": {
+     "template": "source_frame",
+     "valid": true,
+     "metrics": {
+      "iou": 0.419,
+      "center_err": 0.013,
+      "size_err": 0.256,
+      "font_err": 0.134,
+      "order_agree": 1.0,
+      "defects": 0.881
+     }
+    },
+    "engine_model": {
+     "template": "learned_0_raw",
+     "valid": true,
+     "metrics": {
+      "iou": 0.724,
+      "center_err": 0.006,
+      "size_err": 0.067,
+      "font_err": 0.056,
+      "order_agree": 1.0,
+      "defects": 0.92
+     }
+    }
+   },
+   {
+    "case": "16",
+    "id": "5a033f88d8141396fe9895a4",
+    "target_id": "5a0342edd8141396fe9897c4",
+    "title": "Tools for school Offer",
+    "from": [
+     851.0,
+     315.0
+    ],
+    "to": [
+     1500.0,
+     500.0
+    ],
+    "engine_before": {
+     "template": "solver_source_frame",
+     "valid": true,
+     "metrics": {
+      "iou": 0.22,
+      "center_err": 0.029,
+      "size_err": 0.211,
+      "font_err": 0.231,
+      "order_agree": 1.0,
+      "defects": 0.055
+     }
+    },
+    "engine_model": {
+     "template": "learned_0_raw",
+     "valid": true,
+     "metrics": {
+      "iou": 0.34,
+      "center_err": 0.017,
+      "size_err": 0.072,
+      "font_err": 0.034,
+      "order_agree": 1.0,
+      "defects": 0.078
+     }
+    }
+   },
+   {
+    "case": "17",
+    "id": "592d211295a7a863ddcd9e57",
+    "target_id": "5952935495a7a863ddcdff28",
+    "title": "Birthday Invitation with Girl Blowing Candles on Cake",
+    "from": [
+     1024.0,
+     512.0
+    ],
+    "to": [
+     360.0,
+     504.0
+    ],
+    "engine_before": {
+     "template": "refined_solver_source_frame",
+     "valid": true,
+     "metrics": {
+      "iou": 0.1,
+      "center_err": 0.079,
+      "size_err": 1.073,
+      "font_err": 0.563,
+      "order_agree": 1.0,
+      "defects": 0.178
+     }
+    },
+    "engine_model": {
+     "template": "learned_0_raw",
+     "valid": true,
+     "metrics": {
+      "iou": 0.356,
+      "center_err": 0.02,
+      "size_err": 0.157,
+      "font_err": 0.015,
+      "order_agree": 1.0,
+      "defects": 0.0
+     }
+    }
+   },
+   {
+    "case": "18",
+    "id": "595277ed95a7a863ddcdf236",
+    "target_id": "5952794e95a7a863ddcdf37b",
+    "title": "World Wildlife Day Animals in Natural Habitat",
+    "from": [
+     360.0,
+     504.0
+    ],
+    "to": [
+     540.0,
+     810.0
+    ],
+    "engine_before": {
+     "template": "solver_source_frame",
+     "valid": true,
+     "metrics": {
+      "iou": 0.223,
+      "center_err": 0.059,
+      "size_err": 0.178,
+      "font_err": 0.209,
+      "order_agree": 0.928,
+      "defects": 0.455
+     }
+    },
+    "engine_model": {
+     "template": "learned_0_raw",
+     "valid": true,
+     "metrics": {
+      "iou": 0.467,
+      "center_err": 0.05,
+      "size_err": 0.19,
+      "font_err": 0.065,
+      "order_agree": 0.928,
+      "defects": 0.468
+     }
+    }
+   },
+   {
+    "case": "19",
+    "id": "5a21654ad8141396fe9a261f",
+    "target_id": "5a217ed9d8141396fe9a2fcb",
+    "title": "Christmas Greeting Card with Snowy Night Village",
+    "from": [
+     419.0,
+     298.0
+    ],
+    "to": [
+     1080.0,
+     1080.0
+    ],
+    "engine_before": {
+     "template": "source_frame",
+     "valid": true,
+     "metrics": {
+      "iou": 0.29,
+      "center_err": 0.02,
+      "size_err": 0.43,
+      "font_err": 0.205,
+      "order_agree": 1.0,
+      "defects": 0.033
+     }
+    },
+    "engine_model": {
+     "template": "learned_0_raw",
+     "valid": true,
+     "metrics": {
+      "iou": 0.493,
+      "center_err": 0.012,
+      "size_err": 0.142,
+      "font_err": 0.021,
+      "order_agree": 1.0,
+      "defects": 0.0
+     }
+    }
+   },
+   {
+    "case": "20",
+    "id": "588a101a95a7a863ddcc4573",
+    "target_id": "588a0f7495a7a863ddcc44b6",
+    "title": "Home decor design with modern furniture",
+    "from": [
+     940.0,
+     788.0
+    ],
+    "to": [
+     360.0,
+     504.0
+    ],
+    "engine_before": {
+     "template": "photo_scene",
+     "valid": true,
+     "metrics": {
+      "iou": 0.477,
+      "center_err": 0.043,
+      "size_err": 0.558,
+      "font_err": 0.348,
+      "order_agree": 0.9,
+      "defects": 0.0
+     }
+    },
+    "engine_model": {
+     "template": "learned_0_raw",
+     "valid": true,
+     "metrics": {
+      "iou": 0.881,
+      "center_err": 0.004,
+      "size_err": 0.041,
+      "font_err": 0.037,
+      "order_agree": 1.0,
+      "defects": 0.318
+     }
+    }
+   },
+   {
+    "case": "21",
+    "id": "590b0d7095a7a863ddcd7127",
+    "target_id": "59528c2395a7a863ddcdf9b1",
+    "title": "Nature Expo announcement with colorful leaves",
+    "from": [
+     360.0,
+     504.0
+    ],
+    "to": [
+     300.0,
+     250.0
+    ],
+    "engine_before": {
+     "template": "refined_anchored",
+     "valid": true,
+     "metrics": {
+      "iou": 0.133,
+      "center_err": 0.144,
+      "size_err": 1.011,
+      "font_err": 0.399,
+      "order_agree": 0.75,
+      "defects": 0.0
+     }
+    },
+    "engine_model": {
+     "template": "learned_0_raw",
+     "valid": true,
+     "metrics": {
+      "iou": 0.315,
+      "center_err": 0.046,
+      "size_err": 0.886,
+      "font_err": 0.385,
+      "order_agree": 1.0,
+      "defects": 0.0
+     }
+    }
+   },
+   {
+    "case": "22",
+    "id": "5931118c95a7a863ddcdc4cb",
+    "target_id": "58ac639a95a7a863ddcc7c40",
+    "title": "Furniture for life advertisement",
+    "from": [
+     1200.0,
+     600.0
+    ],
+    "to": [
+     851.0,
+     315.0
+    ],
+    "engine_before": {
+     "template": "refined_anchored_scale1.5",
+     "valid": true,
+     "metrics": {
+      "iou": 0.37,
+      "center_err": 0.051,
+      "size_err": 0.36,
+      "font_err": 0.109,
+      "order_agree": 1.0,
+      "defects": 0.0
+     }
+    },
+    "engine_model": {
+     "template": "refined_solver_source_frame",
+     "valid": true,
+     "metrics": {
+      "iou": 0.46,
+      "center_err": 0.029,
+      "size_err": 0.269,
+      "font_err": 0.159,
+      "order_agree": 1.0,
+      "defects": 0.0
+     }
+    }
+   },
+   {
+    "case": "23",
+    "id": "5a144bd7d8141396fe997202",
+    "target_id": "5aa915b5f07aee697739b3ae",
+    "title": "Happy New Year Greeting with Festive Glasses",
+    "from": [
+     851.0,
+     315.0
+    ],
+    "to": [
+     560.0,
+     315.0
+    ],
+    "engine_before": {
+     "template": "refined_solver_scale",
+     "valid": true,
+     "metrics": {
+      "iou": 0.573,
+      "center_err": 0.03,
+      "size_err": 0.156,
+      "font_err": 0.187,
+      "order_agree": 0.818,
+      "defects": 1.0
+     }
+    },
+    "engine_model": {
+     "template": "learned_0_bound_raw",
+     "valid": true,
+     "metrics": {
+      "iou": 0.444,
+      "center_err": 0.042,
+      "size_err": 0.459,
+      "font_err": 0.185,
+      "order_agree": 1.0,
+      "defects": 1.0
+     }
+    }
+   },
+   {
+    "case": "24",
+    "id": "58b85f1c95a7a863ddccb44d",
+    "target_id": "58aed30b95a7a863ddcc8876",
+    "title": "Hardware Tips with Gadgets on table",
+    "from": [
+     1296.0,
+     1728.0
+    ],
+    "to": [
+     540.0,
+     810.0
+    ],
+    "engine_before": {
+     "template": "anchored_scale1.3",
+     "valid": true,
+     "metrics": {
+      "iou": 0.129,
+      "center_err": 0.094,
+      "size_err": 0.478,
+      "font_err": 0.186,
+      "order_agree": 0.879,
+      "defects": 0.0
+     }
+    },
+    "engine_model": {
+     "template": "learned_0_raw",
+     "valid": true,
+     "metrics": {
+      "iou": 0.394,
+      "center_err": 0.012,
+      "size_err": 0.072,
+      "font_err": 0.107,
+      "order_agree": 1.0,
+      "defects": 0.0
+     }
+    }
+   },
+   {
+    "case": "25",
+    "id": "592800a195a7a863ddcd8ddb",
+    "target_id": "5888a55a95a7a863ddcc1d1d",
+    "title": "Charity Quote with Open Palms",
+    "from": [
+     360.0,
+     504.0
+    ],
+    "to": [
+     1200.0,
+     600.0
+    ],
+    "engine_before": {
+     "template": "refined_source_frame",
+     "valid": true,
+     "metrics": {
+      "iou": 0.06,
+      "center_err": 0.097,
+      "size_err": 1.093,
+      "font_err": 0.634,
+      "order_agree": 1.0,
+      "defects": 0.62
+     }
+    },
+    "engine_model": {
+     "template": "refined_source_frame",
+     "valid": true,
+     "metrics": {
+      "iou": 0.06,
+      "center_err": 0.097,
+      "size_err": 1.093,
+      "font_err": 0.625,
+      "order_agree": 1.0,
+      "defects": 0.62
+     }
+    }
+   },
+   {
+    "case": "26",
+    "id": "5a227666d8141396fe9a45d4",
+    "target_id": "5888d63395a7a863ddcc2752",
+    "title": "Dating Auction announcement on pink watercolor Flowers",
+    "from": [
+     1920.0,
+     1080.0
+    ],
+    "to": [
+     1600.0,
+     400.0
+    ],
+    "engine_before": {
+     "template": "split_left",
+     "valid": true,
+     "metrics": {
+      "iou": 0.2,
+      "center_err": 0.104,
+      "size_err": 0.773,
+      "font_err": 0.439,
+      "order_agree": 0.795,
+      "defects": 0.0
+     }
+    },
+    "engine_model": {
+     "template": "learned_0_raw",
+     "valid": true,
+     "metrics": {
+      "iou": 0.209,
+      "center_err": 0.055,
+      "size_err": 0.534,
+      "font_err": 0.187,
+      "order_agree": 0.949,
+      "defects": 0.0
+     }
+    }
+   },
+   {
+    "case": "27",
+    "id": "5a3a57b95b3acffff7dc06b8",
+    "target_id": "5a3a8bd65b3acffff7dc0f99",
+    "title": "Happy Christmas Greeting with Festive Star",
+    "from": [
+     1080.0,
+     1080.0
+    ],
+    "to": [
+     1600.0,
+     400.0
+    ],
+    "engine_before": {
+     "template": "refined_solver_banner_classic",
+     "valid": true,
+     "metrics": {
+      "iou": 0.007,
+      "center_err": 0.304,
+      "size_err": 1.507,
+      "font_err": 1.247,
+      "order_agree": 0.552,
+      "defects": 0.0
+     }
+    },
+    "engine_model": {
+     "template": "learned_0_bound_raw",
+     "valid": true,
+     "metrics": {
+      "iou": 0.013,
+      "center_err": 0.27,
+      "size_err": 1.014,
+      "font_err": 0.353,
+      "order_agree": 0.521,
+      "defects": 0.0
+     }
+    }
+   },
+   {
+    "case": "28",
+    "id": "58b85c7195a7a863ddccb26f",
+    "target_id": "58a1e75c95a7a863ddcc636a",
+    "title": "Travel Inspiration Quote with Scenic Mountains Lake",
+    "from": [
+     540.0,
+     810.0
+    ],
+    "to": [
+     1190.0,
+     1683.0
+    ],
+    "engine_before": {
+     "template": "source_frame",
+     "valid": true,
+     "metrics": {
+      "iou": 0.634,
+      "center_err": 0.027,
+      "size_err": 0.252,
+      "font_err": 0.2,
+      "order_agree": 1.0,
+      "defects": 0.0
+     }
+    },
+    "engine_model": {
+     "template": "learned_0_raw",
+     "valid": true,
+     "metrics": {
+      "iou": 0.652,
+      "center_err": 0.023,
+      "size_err": 0.315,
+      "font_err": 0.222,
+      "order_agree": 1.0,
+      "defects": 0.0
+     }
+    }
+   },
+   {
+    "case": "29",
+    "id": "593013dd95a7a863ddcdc134",
+    "target_id": "5889bd3b95a7a863ddcc3d34",
+    "title": "Sports motivation with sports woman",
+    "from": [
+     1200.0,
+     628.0
+    ],
+    "to": [
+     3000.0,
+     1055.0
+    ],
+    "engine_before": {
+     "template": "refined_solver_scale",
+     "valid": true,
+     "metrics": {
+      "iou": 0.225,
+      "center_err": 0.048,
+      "size_err": 0.86,
+      "font_err": 0.399,
+      "order_agree": 1.0,
+      "defects": 0.0
+     }
+    },
+    "engine_model": {
+     "template": "learned_0_raw",
+     "valid": true,
+     "metrics": {
+      "iou": 0.409,
+      "center_err": 0.028,
+      "size_err": 0.073,
+      "font_err": 0.035,
+      "order_agree": 1.0,
+      "defects": 0.0
+     }
+    }
+   },
+   {
+    "case": "30",
+    "id": "58cfb44c95a7a863ddcccb92",
+    "target_id": "58dbb70795a7a863ddccf797",
+    "title": "Interior Decoration Event Announcement with Sofa in Yellow",
+    "from": [
+     2560.0,
+     1440.0
+    ],
+    "to": [
+     1024.0,
+     512.0
+    ],
+    "engine_before": {
+     "template": "refined_anchored_scale1.5",
+     "valid": true,
+     "metrics": {
+      "iou": 0.211,
+      "center_err": 0.17,
+      "size_err": 1.942,
+      "font_err": 0.22,
+      "order_agree": 0.753,
+      "defects": 0.0
+     }
+    },
+    "engine_model": {
+     "template": "learned_0_raw",
+     "valid": true,
+     "metrics": {
+      "iou": 0.21,
+      "center_err": 0.026,
+      "size_err": 0.202,
+      "font_err": 0.086,
+      "order_agree": 1.0,
+      "defects": 0.0
+     }
+    }
+   },
+   {
+    "case": "31",
+    "id": "5a2164f1d8141396fe9a25db",
+    "target_id": "5a217dc2d8141396fe9a2f9d",
+    "title": "Happy New Year card",
+    "from": [
+     300.0,
+     250.0
+    ],
+    "to": [
+     419.0,
+     297.0
+    ],
+    "engine_before": {
+     "template": "refined_source_frame",
+     "valid": true,
+     "metrics": {
+      "iou": 0.353,
+      "center_err": 0.02,
+      "size_err": 0.276,
+      "font_err": 0.025,
+      "order_agree": 0.98,
+      "defects": 0.0
+     }
+    },
+    "engine_model": {
+     "template": "learned_0_bound_raw",
+     "valid": true,
+     "metrics": {
+      "iou": 0.318,
+      "center_err": 0.018,
+      "size_err": 0.34,
+      "font_err": 0.157,
+      "order_agree": 1.0,
+      "defects": 0.0
+     }
+    }
+   },
+   {
+    "case": "32",
+    "id": "5953613e95a7a863ddce13ff",
+    "target_id": "591589d195a7a863ddcd84ac",
+    "title": "Healthy pet veterinary clinic",
+    "from": [
+     300.0,
+     250.0
+    ],
+    "to": [
+     160.0,
+     600.0
+    ],
+    "engine_before": {
+     "template": "refined_solver_photo_scene",
+     "valid": true,
+     "metrics": {
+      "iou": 0.001,
+      "center_err": 0.288,
+      "size_err": 2.796,
+      "font_err": 0.766,
+      "order_agree": 0.754,
+      "defects": 0.0
+     }
+    },
+    "engine_model": {
+     "template": "learned_0_bound",
+     "valid": true,
+     "metrics": {
+      "iou": 0.03,
+      "center_err": 0.279,
+      "size_err": 2.309,
+      "font_err": 0.766,
+      "order_agree": 0.688,
+      "defects": 0.0
+     }
+    }
+   },
+   {
+    "case": "33",
+    "id": "59529e9e95a7a863ddce087e",
+    "target_id": "5a2322bcd8141396fe9a94ec",
+    "title": "Workshop announcement Man with rockabilly hairstyle",
+    "from": [
+     540.0,
+     810.0
+    ],
+    "to": [
+     1920.0,
+     1080.0
+    ],
+    "engine_before": {
+     "template": "source_frame",
+     "valid": true,
+     "metrics": {
+      "iou": 0.109,
+      "center_err": 0.26,
+      "size_err": 0.554,
+      "font_err": 0.252,
+      "order_agree": 0.593,
+      "defects": 0.226
+     }
+    },
+    "engine_model": {
+     "template": "source_frame",
+     "valid": true,
+     "metrics": {
+      "iou": 0.109,
+      "center_err": 0.26,
+      "size_err": 0.554,
+      "font_err": 0.252,
+      "order_agree": 0.593,
+      "defects": 0.226
+     }
+    }
+   },
+   {
+    "case": "34",
+    "id": "5994516b1350e832930051b7",
+    "target_id": "58b3e96f95a7a863ddcc97a0",
+    "title": "Lego Building Club Meeting with Constructor Bricks",
+    "from": [
+     1024.0,
+     512.0
+    ],
+    "to": [
+     940.0,
+     788.0
+    ],
+    "engine_before": {
+     "template": "refined_split_right",
+     "valid": true,
+     "metrics": {
+      "iou": 0.066,
+      "center_err": 0.121,
+      "size_err": 0.917,
+      "font_err": 0.539,
+      "order_agree": 0.915,
+      "defects": 0.0
+     }
+    },
+    "engine_model": {
+     "template": "learned_0_raw",
+     "valid": true,
+     "metrics": {
+      "iou": 0.378,
+      "center_err": 0.017,
+      "size_err": 0.259,
+      "font_err": 0.029,
+      "order_agree": 1.0,
+      "defects": 0.4
+     }
+    }
+   },
+   {
+    "case": "35",
+    "id": "590b11af95a7a863ddcd74ff",
+    "target_id": "58b56ec895a7a863ddcca836",
+    "title": "Eco-friendship concept",
+    "from": [
+     300.0,
+     250.0
+    ],
+    "to": [
+     1200.0,
+     628.0
+    ],
+    "engine_before": {
+     "template": "refined_source_frame",
+     "valid": true,
+     "metrics": {
+      "iou": 0.2,
+      "center_err": 0.033,
+      "size_err": 0.526,
+      "font_err": 0.231,
+      "order_agree": 1.0,
+      "defects": 0.0
+     }
+    },
+    "engine_model": {
+     "template": "learned_0_raw",
+     "valid": true,
+     "metrics": {
+      "iou": 0.293,
+      "center_err": 0.027,
+      "size_err": 0.4,
+      "font_err": 0.272,
+      "order_agree": 1.0,
+      "defects": 0.0
+     }
+    }
+   },
+   {
+    "case": "36",
+    "id": "5888b74c95a7a863ddcc1dc0",
+    "target_id": "5888a4f295a7a863ddcc1cf4",
+    "title": "Dating Auction in Wabash Cafe",
+    "from": [
+     1500.0,
+     500.0
+    ],
+    "to": [
+     851.0,
+     315.0
+    ],
+    "engine_before": {
+     "template": "refined_source_frame",
+     "valid": true,
+     "metrics": {
+      "iou": 0.636,
+      "center_err": 0.02,
+      "size_err": 0.194,
+      "font_err": 0.083,
+      "order_agree": 1.0,
+      "defects": 0.0
+     }
+    },
+    "engine_model": {
+     "template": "learned_0_raw",
+     "valid": true,
+     "metrics": {
+      "iou": 0.625,
+      "center_err": 0.012,
+      "size_err": 0.378,
+      "font_err": 0.079,
+      "order_agree": 1.0,
+      "defects": 0.0
+     }
+    }
+   },
+   {
+    "case": "37",
+    "id": "592d1a3595a7a863ddcd97be",
+    "target_id": "58b5636395a7a863ddcca211",
+    "title": "Design camp announcement on Blue waves",
+    "from": [
+     360.0,
+     504.0
+    ],
+    "to": [
+     1080.0,
+     1080.0
+    ],
+    "engine_before": {
+     "template": "solver_stack_source",
+     "valid": true,
+     "metrics": {
+      "iou": 0.077,
+      "center_err": 0.144,
+      "size_err": 0.877,
+      "font_err": 0.218,
+      "order_agree": 0.65,
+      "defects": 0.0
+     }
+    },
+    "engine_model": {
+     "template": "learned_0_raw",
+     "valid": true,
+     "metrics": {
+      "iou": 0.127,
+      "center_err": 0.135,
+      "size_err": 0.955,
+      "font_err": 0.248,
+      "order_agree": 0.817,
+      "defects": 0.0
+     }
+    }
+   },
+   {
+    "case": "38",
+    "id": "5b408e191eb1c99e2ab25ca9",
+    "target_id": "5b48819a00f9c6103a281257",
+    "title": "Jewish sacred writings",
+    "from": [
+     1024.0,
+     768.0
+    ],
+    "to": [
+     1920.0,
+     1080.0
+    ],
+    "engine_before": {
+     "template": "refined_photo_scene",
+     "valid": true,
+     "metrics": {
+      "iou": 0.186,
+      "center_err": 0.082,
+      "size_err": 0.224,
+      "font_err": 0.218,
+      "order_agree": 0.75,
+      "defects": 0.0
+     }
+    },
+    "engine_model": {
+     "template": "learned_0_raw",
+     "valid": true,
+     "metrics": {
+      "iou": 0.55,
+      "center_err": 0.009,
+      "size_err": 0.178,
+      "font_err": 0.096,
+      "order_agree": 1.0,
+      "defects": 0.0
+     }
+    }
+   },
+   {
+    "case": "39",
+    "id": "59b14e8c1350e8329300c63e",
+    "target_id": "5931468895a7a863ddcdcf51",
+    "title": "Summer Camp friends at sunset beach",
+    "from": [
+     940.0,
+     788.0
+    ],
+    "to": [
+     1080.0,
+     1080.0
+    ],
+    "engine_before": {
+     "template": "source_frame",
+     "valid": true,
+     "metrics": {
+      "iou": 0.448,
+      "center_err": 0.01,
+      "size_err": 0.515,
+      "font_err": 0.256,
+      "order_agree": 1.0,
+      "defects": 0.0
+     }
+    },
+    "engine_model": {
+     "template": "learned_0_raw",
+     "valid": true,
+     "metrics": {
+      "iou": 0.833,
+      "center_err": 0.005,
+      "size_err": 0.061,
+      "font_err": 0.055,
+      "order_agree": 1.0,
+      "defects": 0.0
+     }
+    }
+   },
+   {
+    "case": "40",
+    "id": "5889bd7595a7a863ddcc3d94",
+    "target_id": "592fd56d95a7a863ddcdb907",
+    "title": "Knitting Workshop Needle and Yarn in Blue",
+    "from": [
+     1080.0,
+     1080.0
+    ],
+    "to": [
+     940.0,
+     788.0
+    ],
+    "engine_before": {
+     "template": "source_frame",
+     "valid": true,
+     "metrics": {
+      "iou": 0.537,
+      "center_err": 0.016,
+      "size_err": 0.111,
+      "font_err": 0.057,
+      "order_agree": 1.0,
+      "defects": 0.0
+     }
+    },
+    "engine_model": {
+     "template": "learned_0_raw",
+     "valid": true,
+     "metrics": {
+      "iou": 0.538,
+      "center_err": 0.02,
+      "size_err": 0.288,
+      "font_err": 0.135,
+      "order_agree": 1.0,
+      "defects": 0.0
+     }
+    }
+   },
+   {
+    "case": "41",
+    "id": "592d1f2e95a7a863ddcd9ceb",
+    "target_id": "592d1f8e95a7a863ddcd9d42",
+    "title": "Nature Expo Annoucement",
+    "from": [
+     432.0,
+     288.0
+    ],
+    "to": [
+     1600.0,
+     400.0
+    ],
+    "engine_before": {
+     "template": "refined_scale",
+     "valid": true,
+     "metrics": {
+      "iou": 0.023,
+      "center_err": 0.199,
+      "size_err": 0.789,
+      "font_err": 0.33,
+      "order_agree": 0.785,
+      "defects": 0.0
+     }
+    },
+    "engine_model": {
+     "template": "learned_0_raw",
+     "valid": true,
+     "metrics": {
+      "iou": 0.102,
+      "center_err": 0.135,
+      "size_err": 0.333,
+      "font_err": 0.146,
+      "order_agree": 0.816,
+      "defects": 0.0
+     }
+    }
+   },
+   {
+    "case": "42",
+    "id": "59529d4a95a7a863ddce07d5",
+    "target_id": "58aefa5595a7a863ddcc8de4",
+    "title": "Business consultations with good discount",
+    "from": [
+     300.0,
+     250.0
+    ],
+    "to": [
+     1080.0,
+     1080.0
+    ],
+    "engine_before": {
+     "template": "stack_source",
+     "valid": true,
+     "metrics": {
+      "iou": 0.771,
+      "center_err": 0.014,
+      "size_err": 0.211,
+      "font_err": 0.054,
+      "defects": 0.0
+     }
+    },
+    "engine_model": {
+     "template": "learned_0_raw",
+     "valid": true,
+     "metrics": {
+      "iou": 0.775,
+      "center_err": 0.003,
+      "size_err": 0.255,
+      "font_err": 0.154,
+      "defects": 0.0
+     }
+    }
+   },
+   {
+    "case": "43",
+    "id": "59b1264f1350e8329300bdae",
+    "target_id": "58ff09fb95a7a863ddcd1ff4",
+    "title": "Metals and miners mining company advertisement",
+    "from": [
+     336.0,
+     280.0
+    ],
+    "to": [
+     419.0,
+     298.0
+    ],
+    "engine_before": {
+     "template": "refined_source_frame",
+     "valid": true,
+     "metrics": {
+      "iou": 0.634,
+      "center_err": 0.039,
+      "size_err": 0.32,
+      "font_err": 0.2,
+      "order_agree": 1.0,
+      "defects": 0.0
+     }
+    },
+    "engine_model": {
+     "template": "learned_0_raw",
+     "valid": true,
+     "metrics": {
+      "iou": 0.612,
+      "center_err": 0.027,
+      "size_err": 0.249,
+      "font_err": 0.037,
+      "order_agree": 1.0,
+      "defects": 0.0
+     }
+    }
+   },
+   {
+    "case": "44",
+    "id": "58ab160995a7a863ddcc768a",
+    "target_id": "592fdb2a95a7a863ddcdbcd0",
+    "title": "Birthday Party Garland Frame in Pink",
+    "from": [
+     360.0,
+     504.0
+    ],
+    "to": [
+     1080.0,
+     1080.0
+    ],
+    "engine_before": {
+     "template": "source_frame",
+     "valid": true,
+     "metrics": {
+      "iou": 0.368,
+      "center_err": 0.036,
+      "size_err": 0.356,
+      "font_err": 0.298,
+      "order_agree": 0.857,
+      "defects": 0.0
+     }
+    },
+    "engine_model": {
+     "template": "learned_0_raw",
+     "valid": true,
+     "metrics": {
+      "iou": 0.535,
+      "center_err": 0.032,
+      "size_err": 0.497,
+      "font_err": 0.132,
+      "order_agree": 0.857,
+      "defects": 0.0
+     }
+    }
+   },
+   {
+    "case": "45",
+    "id": "5996ad1e1350e832930065ba",
+    "target_id": "5889bd1395a7a863ddcc3ce0",
+    "title": "The Divine Cult Studio",
+    "from": [
+     1190.0,
+     1683.0
+    ],
+    "to": [
+     1296.0,
+     1728.0
+    ],
+    "engine_before": {
+     "template": "refined_source_frame",
+     "valid": true,
+     "metrics": {
+      "iou": 0.472,
+      "center_err": 0.007,
+      "size_err": 0.34,
+      "font_err": 0.05,
+      "order_agree": 1.0,
+      "defects": 0.0
+     }
+    },
+    "engine_model": {
+     "template": "learned_0_raw",
+     "valid": true,
+     "metrics": {
+      "iou": 0.455,
+      "center_err": 0.005,
+      "size_err": 0.376,
+      "font_err": 0.029,
+      "order_agree": 1.0,
+      "defects": 0.0
+     }
+    }
+   },
+   {
+    "case": "46",
+    "id": "5a2199d5d8141396fe9a3b43",
+    "target_id": "5a219ae1d8141396fe9a3bcd",
+    "title": "Essential carpenter tools Offer",
+    "from": [
+     851.0,
+     315.0
+    ],
+    "to": [
+     600.0,
+     200.0
+    ],
+    "engine_before": {
+     "template": "source_frame",
+     "valid": true,
+     "metrics": {
+      "iou": 0.289,
+      "center_err": 0.043,
+      "size_err": 0.349,
+      "font_err": 0.149,
+      "order_agree": 1.0,
+      "defects": 0.042
+     }
+    },
+    "engine_model": {
+     "template": "learned_0_raw",
+     "valid": true,
+     "metrics": {
+      "iou": 0.346,
+      "center_err": 0.029,
+      "size_err": 0.117,
+      "font_err": 0.029,
+      "order_agree": 1.0,
+      "defects": 0.062
+     }
+    }
+   },
+   {
+    "case": "47",
+    "id": "5e9596ea499b85dcc7f227af",
+    "target_id": "5cebcd497d4459dfe1e89889",
+    "title": "Makeup Sale with brush and powder",
+    "from": [
+     851.0,
+     315.0
+    ],
+    "to": [
+     940.0,
+     788.0
+    ],
+    "engine_before": {
+     "template": "photo_scene",
+     "valid": true,
+     "metrics": {
+      "iou": 0.098,
+      "center_err": 0.133,
+      "size_err": 0.733,
+      "font_err": 0.177,
+      "order_agree": 0.667,
+      "defects": 0.0
+     }
+    },
+    "engine_model": {
+     "template": "learned_0_raw",
+     "valid": true,
+     "metrics": {
+      "iou": 0.196,
+      "center_err": 0.137,
+      "size_err": 0.45,
+      "font_err": 0.114,
+      "order_agree": 0.667,
+      "defects": 0.0
+     }
+    }
+   },
+   {
+    "case": "48",
+    "id": "5e8c77ff4b3890eb0758a3fc",
+    "target_id": "5e8c77fe4b3890eb0758a319",
+    "title": "Beauty Inspiration Young Girl without makeup",
+    "from": [
+     1920.0,
+     1080.0
+    ],
+    "to": [
+     851.0,
+     315.0
+    ],
+    "engine_before": {
+     "template": "split_left",
+     "valid": true,
+     "metrics": {
+      "iou": 0.316,
+      "center_err": 0.059,
+      "size_err": 0.459,
+      "font_err": 0.375,
+      "order_agree": 1.0,
+      "defects": 0.0
+     }
+    },
+    "engine_model": {
+     "template": "learned_0_raw",
+     "valid": true,
+     "metrics": {
+      "iou": 0.2,
+      "center_err": 0.071,
+      "size_err": 0.245,
+      "font_err": 0.016,
+      "order_agree": 0.971,
+      "defects": 0.0
+     }
+    }
+   },
+   {
+    "case": "49",
+    "id": "5df397779fea0cc374dfa161",
+    "target_id": "5df397779fea0cc374dfa2ce",
+    "title": "Computer on Working Table in Office",
+    "from": [
+     1024.0,
+     768.0
+    ],
+    "to": [
+     1920.0,
+     1080.0
+    ],
+    "engine_before": {
+     "template": "refined_source_frame",
+     "valid": true,
+     "metrics": {
+      "iou": 0.0,
+      "center_err": 0.191,
+      "size_err": 0.379,
+      "font_err": 0.288,
+      "order_agree": 0.846,
+      "defects": 0.0
+     }
+    },
+    "engine_model": {
+     "template": "learned_0_raw",
+     "valid": true,
+     "metrics": {
+      "iou": 0.0,
+      "center_err": 0.257,
+      "size_err": 0.352,
+      "font_err": 0.176,
+      "order_agree": 1.0,
+      "defects": 0.0
+     }
+    }
+   }
+  ]
+ },
+ "model_only_proxy": {
+  "note": "rule-fail now also counts new occlusion and collapsed content",
+  "cases50": {
+   "iou": 0.3883,
+   "font_err": 0.1401,
+   "rule_fail": 9
+  },
+  "unused32": {
+   "iou": 0.275,
+   "font_err": 0.1611,
+   "rule_fail": 6
+  }
+ }
+}
