@@ -85,6 +85,33 @@ Fixes made while testing the real app path:
 
 Not fixable by post-processing: copy that cannot be readable at all in the target, such as a letter-spaced word in a 160-px-wide strip. Letter spacing and rotation are protected fields.
 
+## Strip adapter (2026-10-28): built, off by default
+
+`training/retarget/adapter.py` adds a low-rank (LoRA) correction to the frozen model's decoder and output heads. It has 47,616 parameters, rank 4, against the model's 4M. Its strength follows the target's aspect ratio: 0 below 3:1, ramping to 1 at 4:1, wide or tall. Below 3:1 every prediction is bit-identical to the base model, and a test checks this.
+- **Training data:** the 4,516 real designer pairs at 3:1 or beyond, mixed with synthetic strips.
+- **Synthetic strips:** 1,949 passed every check. 821 were kept: those where all text is at least 15% above its readable floor, with appeal of at least 0.1. Without that filter the adapter learned floor-hugging fonts.
+- **Overfitting guards:** a KL term to the base model, and early stopping on held-out real and synthetic strips.
+- **In the engine:** for strips it adds two candidates (`learned_a0`, `learned_a1`) and one solver run under its own distribution (`learned_s0_adapter`). The engine still picks among all candidates.
+
+| Variant | Synthetic data | Its own greedy layout passes (base model: 27%) | Adds a better option |
+|---|---|---|---|
+| a1 | uncleaned | 20.5% | 33 of 200 |
+| a2 | cleaned | 21.5% | 34 of 200 |
+| **a3** | cleaned, 30% synthetic, KL 0.3 | 22.5% | **35 of 200** |
+| a4 | cleaned, rank 8, KL 0.05 | 21.5% | 30 of 200 |
+
+Full engine with a3, 120 strips run back to back on an idle machine:
+- Pass rate: 61.7% without the adapter, 62.5% with it (2 gained, 1 lost).
+- Mean appeal: identical. Higher on 7 strips, lower on 8.
+- Time: about 1 s more per strip.
+- On 200 held-out pairs, the pick changed in only 3.
+
+Verdict: neutral, so it is **off by default**. `CHAMELEON_STRIP_ADAPTER=1` turns it on; the weights are in `engine/models/retarget_strip.npz`. The cause is that the synthetic strips come from the composer and solver, which are already engine candidates, so the adapter learns options the engine already has. The remaining strip failures need new information, not more of the same:
+- **Unreadable text (22 of 45 failures):** often there is no readable answer at all, because letter spacing and rotation are protected fields.
+- **Contrast loss (15):** text lands on a busier part of the background once the design is squeezed into a strip.
+
+Levers that add new information: human votes on strips (round `rs`), more real designer strips, and contrast-aware placement in the strip composer.
+
 ## Synthetic strips
 
 From 2,000 train designs, each given one random strip format, 872 targets passed every engine check and were kept (`work/postproc/strips/synthetic.jsonl`). 540 came from the composer and 332 from the solver; every format has 69–154 targets. The other 1,128 had no candidate that passed. These are ready to add as extra (source, target) pairs in the next model update. They are not yet used.

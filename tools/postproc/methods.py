@@ -163,3 +163,10 @@ def engine_on(src, target, A, recs):
 
 def engine_off(src, target, A, recs):
     return _engine(src, target, A, recs, 'off')
+
+
+def engine_on_adapter(src, target, A, recs):
+    """engine_on with the strip adapter switched on (CHAMELEON_STRIP_ADAPTER=1)."""
+    import os
+    os.environ['CHAMELEON_STRIP_ADAPTER'] = '1'
+    return _engine(src, target, A, recs, 'solver')

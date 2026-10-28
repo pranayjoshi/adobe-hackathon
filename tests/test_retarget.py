@@ -260,6 +260,43 @@ class PostprocDefaultTests(unittest.TestCase):
         self.assertIsNotNone(sol)
 
 
+class StripAdapterTests(unittest.TestCase):
+    def test_gate_is_off_below_three_to_one_and_full_from_four_to_one(self):
+        from engine.retarget.infer import strip_gate
+        self.assertEqual(strip_gate(1200, 628), 0.0)
+        self.assertEqual(strip_gate(1500, 500), 0.0)
+        self.assertEqual(strip_gate(970, 90), 1.0); self.assertEqual(strip_gate(90, 800), 1.0)
+        self.assertEqual(strip_gate(1600, 400), 1.0)
+        self.assertTrue(0 < strip_gate(350, 100) < 1)
+
+    @unittest.skipUnless(weights_path().exists(), 'retarget weights not exported')
+    def test_gate_zero_leaves_the_base_model_unchanged(self):
+        import tempfile
+        import numpy as np
+        from engine.retarget.features import encode_source
+        from engine.retarget.infer import Model
+        from engine.retarget.propose import records
+        from engine.analysis import analyze
+        base = Model(weights_path())
+        rng = np.random.default_rng(0)
+        d = base.cfg['d']
+        arrays = {}
+        for i in range(base.cfg['dec_layers']):
+            for name in ('attn.q', 'attn.o', 'xattn.q', 'xattn.o'):
+                arrays[f'dec.{i}.{name}.lora_A'] = rng.normal(0, .5, (4, d)).astype(np.float32)
+                arrays[f'dec.{i}.{name}.lora_B'] = rng.normal(0, .5, (d, 4)).astype(np.float32)
+        with tempfile.TemporaryDirectory() as folder:
+            path = Path(folder) / 'adapter.npz'
+            np.savez(path, **arrays)
+            adapted = Model(weights_path(), adapter=path)
+        source = json.loads(Path('input/chameleon_sample_level2_core.json').read_text())['source']
+        recs = records(source, analyze(source))
+        t, f, g = encode_source(recs, 1080, 1080, 970, 90)
+        same = base.sample(t, f, g, k=1)
+        self.assertTrue((adapted.sample(t, f, g, k=1, gate=0.0) == same).all())
+        self.assertFalse((adapted.sample(t, f, g, k=1, gate=1.0) == same).all())
+
+
 class RenderPoolTests(unittest.TestCase):
     def test_warm_worker_renders_match_fresh_processes_and_survive_a_crash(self):
         import os

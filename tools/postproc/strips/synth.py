@@ -97,12 +97,14 @@ def main():
     ap.add_argument('--designs', type=int, default=3000)
     ap.add_argument('--out', default=str(HERE / 'synthetic.jsonl'))
     ap.add_argument('--workers', type=int, default=8)
+    ap.add_argument('--seed', type=int, default=31)
+    ap.add_argument('--per', type=int, default=1, help='strip formats per design')
     a = ap.parse_args()
     from training.retarget.data import load
     designs, _ = load(ROOT / 'work/retarget-data')
     train = [i for i, d in enumerate(designs) if d['split'] == 'train' and 3 <= len(d['els']) <= 48]
-    rng = random.Random(31)
-    items = [(i, rng.choice(FORMATS)) for i in rng.sample(train, min(a.designs, len(train)))]
+    rng = random.Random(a.seed)
+    items = [(i, f) for i in rng.sample(train, min(a.designs, len(train))) for f in rng.sample(FORMATS, a.per)]
     done = set()
     if Path(a.out).exists():
         done = {(json.loads(l)['src'], json.loads(l)['fmt']) for l in open(a.out)}

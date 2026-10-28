@@ -15,6 +15,14 @@ from .features import N_BINS, TASK_ARRANGE, TASK_PAIR, centered, decode_target, 
 N_FIELDS = 5
 BOS = N_FIELDS * N_BINS
 DEFAULT_WEIGHTS = Path(__file__).resolve().parents[1] / 'models' / 'retarget.npz'
+STRIP_ADAPTER = Path(__file__).resolve().parents[1] / 'models' / 'retarget_strip.npz'
+
+
+def strip_gate(tW, tH):
+    """How much the strip adapter applies: 0 below a 3:1 target, 1 from 4:1 (wide or tall), a
+    linear ramp in log aspect between, so behaviour does not jump at the threshold."""
+    r = math.log(max(tW / tH, tH / tW))
+    return min(1.0, max(0.0, (r - math.log(3)) / (math.log(4) - math.log(3))))
 
 
 def _gelu(x):
@@ -27,39 +35,44 @@ def _ln(x, p):
     return (x - m) / np.sqrt(v + 1e-5) * p['weight'] + p['bias']
 
 
-def _lin(x, p):
-    return x @ p['weight'].T + p['bias']
-
-
 class Model:
-    def __init__(self, path=DEFAULT_WEIGHTS):
+    def __init__(self, path=DEFAULT_WEIGHTS, adapter=None):
         z = np.load(path)
         self.cfg = json.loads(bytes(z['__config__']).decode())
         tree = {}
-        for k in z.files:
-            if k == '__config__':
-                continue
-            node = tree
-            parts = k.split('.')
-            for part in parts[:-1]:
-                node = node.setdefault(part, {})
-            node[parts[-1]] = z[k].astype(np.float32)
+        for zz in (z, np.load(adapter)) if adapter else (z,):
+            for k in zz.files:
+                if k == '__config__':
+                    continue
+                node = tree
+                parts = k.split('.')
+                for part in parts[:-1]:
+                    node = node.setdefault(part, {})
+                node[parts[-1]] = zz[k].astype(np.float32)
         self.p = tree
         self.h = self.cfg['heads']
+        self.adapter = bool(adapter)
+        self.gate = 0.0  # strip adapter strength for the current call (see strip_gate)
+
+    def _lin(self, x, p):
+        y = x @ p['weight'].T + p['bias']
+        if self.gate and 'lora_A' in p:
+            y = y + self.gate * ((x @ p['lora_A'].T) @ p['lora_B'].T)
+        return y
 
     def _attn(self, x, mem, mask, p):
         B, T, D = x.shape
         S = mem.shape[1]
         h, dh = self.h, D // self.h
-        q = _lin(x, p['q']).reshape(B, T, h, dh).transpose(0, 2, 1, 3)
-        kv = _lin(mem, p['kv']).reshape(B, S, 2, h, dh).transpose(2, 0, 3, 1, 4)
+        q = self._lin(x, p['q']).reshape(B, T, h, dh).transpose(0, 2, 1, 3)
+        kv = self._lin(mem, p['kv']).reshape(B, S, 2, h, dh).transpose(2, 0, 3, 1, 4)
         k, v = kv[0], kv[1]
         s = q @ k.transpose(0, 1, 3, 2) / math.sqrt(dh)
         s = np.where(mask, s, -1e9)
         s = np.exp(s - s.max(-1, keepdims=True))
         s /= s.sum(-1, keepdims=True)
         y = (s @ v).transpose(0, 2, 1, 3).reshape(B, T, D)
-        return _lin(y, p['o'])
+        return self._lin(y, p['o'])
 
     def _block(self, x, p, mask, mem=None, mem_mask=None):
         h = _ln(x, p['ln1'])
@@ -67,29 +80,31 @@ class Model:
         if mem is not None:
             x = x + self._attn(_ln(x, p['ln2']), mem, mem_mask, p['xattn'])
         f = p['ff1'], p['ff2']
-        return x + _lin(_gelu(_lin(_ln(x, p['ln3']), f[0])), f[1])
+        return x + self._lin(_gelu(self._lin(_ln(x, p['ln3']), f[0])), f[1])
 
     def encode(self, types, feats, glob):
         p = self.p
         n = len(types)
-        x = p['type_emb']['weight'][types] + _lin(_gelu(_lin(feats, p['feat']['0'])), p['feat']['2']) + p['rank_emb']['weight'][:n]
-        g = _lin(_gelu(_lin(glob, p['glob']['0'])), p['glob']['2'])
+        x = p['type_emb']['weight'][types] + self._lin(_gelu(self._lin(feats, p['feat']['0'])), p['feat']['2']) + p['rank_emb']['weight'][:n]
+        g = self._lin(_gelu(self._lin(glob, p['glob']['0'])), p['glob']['2'])
         x = np.concatenate([g[None], x], 0)[None]
         mask = np.ones((1, 1, 1, n + 1), bool)
         for i in range(self.cfg['enc_layers']):
             x = self._block(x, p['enc'][str(i)], mask)
         return _ln(x, p['enc_ln'])[0]
 
-    def sample(self, types, feats, glob, k=8, temperature=0.8, top_p=0.9, seed=0, return_probs=False):
+    def sample(self, types, feats, glob, k=8, temperature=0.8, top_p=0.9, seed=0, return_probs=False, gate=0.0):
         """Return k bin arrays [n, 5]; sample 0 is greedy, the rest nucleus samples.
 
         With return_probs, also each row's per-field distribution [k, n, 5, N_BINS] (temperature 1),
-        conditioned on that row's own earlier choices: the solver's likelihood costs."""
+        conditioned on that row's own earlier choices: the solver's likelihood costs.
+        gate: strip adapter strength (0 = the base model; needs weights loaded with an adapter)."""
+        self.gate = float(gate) if self.adapter else 0.0
         p = self.p
         rng = np.random.default_rng(seed)
         mem = self.encode(types, feats, glob)
         n = len(types)
-        el_state = _lin(mem[1:], p['el_proj']) + p['rank_emb']['weight'][:n]
+        el_state = self._lin(mem[1:], p['el_proj']) + p['rank_emb']['weight'][:n]
         memk = np.repeat(mem[None], k, 0)
         mem_mask = np.ones((1, 1, 1, n + 1), bool)
         bins = np.zeros((k, n, N_FIELDS), np.int64)
@@ -105,7 +120,7 @@ class Model:
             z = _ln(x[:, j], p['dec_ln'])
             for f in range(N_FIELDS):
                 hp = p['heads'][str(f)]
-                logits = _lin(_gelu(_lin(z, hp['0'])), hp['2'])
+                logits = self._lin(_gelu(self._lin(z, hp['0'])), hp['2'])
                 if return_probs:
                     e = np.exp(logits - logits.max(-1, keepdims=True))
                     probs[:, j, f] = e / e.sum(-1, keepdims=True)
@@ -138,25 +153,35 @@ def weights_path():
     return Path(os.environ.get('CHAMELEON_RETARGET_WEIGHTS') or DEFAULT_WEIGHTS)
 
 
-def load(path=None):
+def load(path=None, adapter=None):
     path = Path(path or weights_path())
-    if path not in _MODELS:
-        _MODELS[path] = Model(path)
-    return _MODELS[path]
+    key = (path, adapter and Path(adapter))
+    if key not in _MODELS:
+        _MODELS[key] = Model(path, adapter=adapter)
+    return _MODELS[key]
 
 
-def predict_dist(records, W, H, tW, tH, k=4, temperature=0.8, top_p=0.9, seed=0, model=None, task=TASK_PAIR):
+def strip_adapter():
+    """The strip adapter's weights file when switched on (CHAMELEON_STRIP_ADAPTER=1). Off by default:
+    in the full engine it was neutral on strips (62.5% vs 61.7% pass, same appeal) for ~1 s more,
+    because its synthetic training strips come from candidates the engine already generates."""
+    if os.environ.get('CHAMELEON_STRIP_ADAPTER', '0') != '1' or not STRIP_ADAPTER.exists():
+        return None
+    return STRIP_ADAPTER
+
+
+def predict_dist(records, W, H, tW, tH, k=4, temperature=0.8, top_p=0.9, seed=0, model=None, task=TASK_PAIR, gate=0.0):
     """Like predict, plus per-row field distributions [k, n, 5, N_BINS] for constrained decoding."""
     model = model or load()
     if task == TASK_ARRANGE:
         records, W, H = centered(records, W, H, tW, tH), tW, tH
     types, feats, glob = encode_source(records, W, H, tW, tH, task)
-    bins, probs = model.sample(types, feats, glob, k, temperature, top_p, seed, return_probs=True)
+    bins, probs = model.sample(types, feats, glob, k, temperature, top_p, seed, return_probs=True, gate=gate)
     boxes = [[decode_target(b, r, W, H, tW, tH) for b, r in zip(sample, records)] for sample in bins]
     return boxes, probs, (records, W, H)
 
 
-def predict(records, W, H, tW, tH, k=8, temperature=0.8, top_p=0.9, seed=0, model=None, task=TASK_PAIR):
+def predict(records, W, H, tW, tH, k=8, temperature=0.8, top_p=0.9, seed=0, model=None, task=TASK_PAIR, gate=0.0):
     """records: element records (see features.py) in stacking order. Returns k lists of boxes.
 
     task=TASK_PAIR conditions on the source arrangement (sample 0 greedy); TASK_ARRANGE gives the
@@ -165,5 +190,5 @@ def predict(records, W, H, tW, tH, k=8, temperature=0.8, top_p=0.9, seed=0, mode
     if task == TASK_ARRANGE:
         records, W, H = centered(records, W, H, tW, tH), tW, tH
     types, feats, glob = encode_source(records, W, H, tW, tH, task)
-    bins = model.sample(types, feats, glob, k, temperature, top_p, seed)
+    bins = model.sample(types, feats, glob, k, temperature, top_p, seed, gate=gate)
     return [[decode_target(b, r, W, H, tW, tH) for b, r in zip(sample, records)] for sample in bins]

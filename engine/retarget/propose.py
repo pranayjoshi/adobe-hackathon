@@ -222,7 +222,21 @@ def propose(source, target, A, k=6, temperature=0.8, seed=0):
     out = [(str(i), deoverlap(source, materialize(source, target, A, recs, p), A)) for i, p in enumerate(preds)]
     if preds and backed(source, True) != backed(source):
         out.insert(1, ('0_bound', deoverlap(source, materialize(source, target, A, recs, preds[0], loose=True), A, loose=True)))
-    return out
+    return out + adapted(source, target, A, recs)
+
+
+def adapted(source, target, A, recs, k=2):
+    """Extra candidates for extreme strips from the strip adapter (training/retarget/adapter.py):
+    its greedy layout and one sample, tagged a0/a1. The base model's candidates are unchanged and
+    the engine picks among all of them, so the adapter can only add options."""
+    from .infer import load, strip_adapter, strip_gate, weights_path
+    g = strip_gate(float(target['width']), float(target['height']))
+    path = strip_adapter()
+    if not g or path is None:
+        return []
+    W, H = float(source['canvas']['width']), float(source['canvas']['height'])
+    preds = predict(recs, W, H, float(target['width']), float(target['height']), k=k, model=load(weights_path(), path), gate=g)
+    return [(f'a{i}', deoverlap(source, materialize(source, target, A, recs, p), A)) for i, p in enumerate(preds)]
 
 
 def candidates(source, target, A, options, events):
@@ -338,9 +352,33 @@ def solved(source, target, A, warm, events, options=None):
                 events.append({'learned_solver': {'profile': name, 'status': sol.status, 'notes': sol.notes[-3:]}})
             else:
                 events.append({'learned_solver': {'profile': name, 'status': 'no solution'}})
+        out += _solved_adapter(P, recs, W, H, target, warm, events, options) if P.strip else []
     except Exception as exc:  # the solver is an addition: today's candidates stand without it
         events.append({'learned_solver': f'failed: {type(exc).__name__}: {exc}'})
     return out
+
+
+def _solved_adapter(P, recs, W, H, target, warm, events, options):
+    """For strips, one more solve under the strip adapter's distribution (in-distribution for
+    strips, so its model cost is trusted more), with its own time slice so the profiles above keep
+    theirs. Tagged learned_s0_adapter."""
+    import time
+    from .infer import load, predict_dist, strip_adapter, strip_gate, weights_path
+    from .solver import solve
+    path, g = strip_adapter(), strip_gate(float(target['width']), float(target['height']))
+    if path is None or not g:
+        return []
+    boxes, probs, _ = predict_dist(recs, W, H, float(target['width']), float(target['height']), k=1,
+                                   model=load(weights_path(), path), gate=g)
+    deadline = time.monotonic() + float(options.get('adapter_budget', 2.5))
+    sol = solve(P, boxes[0], probs[0], weights={'strip_model': float(options.get('adapter_trust', 1.0))},
+                time_limit=float(options.get('solver_seconds', 1.5)), hint=warm, workers=int(options.get('solver_workers', 8)),
+                deadline=deadline)
+    if sol is None or sol.design is None:
+        events.append({'learned_solver': {'profile': 'adapter', 'status': 'no solution'}})
+        return []
+    events.append({'learned_solver': {'profile': 'adapter', 'status': sol.status, 'notes': sol.notes[-3:]}})
+    return [('learned_s0_adapter', 'Learned layout (solved, strip adapter)', 'The strip adapter\'s most likely layout that satisfies every check', sol.design)]
 
 
 _PRIORS = None

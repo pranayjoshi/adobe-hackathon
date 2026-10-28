@@ -406,6 +406,8 @@ def _solve_once(P, seed_boxes, probs, weights=None, time_limit=0.25, extra_pairs
         # Out of the model's distribution: trust its sizes less; the reading-order composer is the
         # warm start and strip ordering costs replace the source-axis ones.
         w = dict(w, **STRIP_WEIGHTS, **{k: v for k, v in (weights or {}).items() if k.startswith('strip_')})
+        if 'strip_model' in (weights or {}):
+            w['model'] = weights['strip_model']  # a strip-trained distribution (the strip adapter) is trusted more
     tW, tH = P.tW, P.tH
     short = min(tW, tH)
     seed = {r['id']: b for r, b in zip(P.recs, seed_boxes)}
