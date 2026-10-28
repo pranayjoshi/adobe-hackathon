@@ -85,6 +85,25 @@ Fixes made while testing the real app path:
 
 Not fixable by post-processing: copy that cannot be readable at all in the target, such as a letter-spaced word in a 160-px-wide strip. Letter spacing and rotation are protected fields.
 
+## Strip legibility (2026-10-28): on by default
+
+Contrast loss was the second biggest strip failure. The pictures showed two causes:
+1. **Shrunk backdrop.** A near-canvas background (for example 92% of the canvas, so not a geometric cover) was packed as a unit and shrunk to a swatch, so the copy lost what it was legible on. For strips, a bottom image the rules allow to switch to a cover crop is now treated as a cover (`Problem(backdrop=True)`).
+2. **Copy off its panel.** Copy slid off its panel onto a clashing area. `engine/retarget/contrast.py` moves each regressed text to the nearest spot along the strip where it reads as the engine requires, using the engine's own contrast estimate. It must land on the canvas background or a layer that fully backs it, and add no collision. Colours, fonts and sizes never change.
+
+Both apply to strip candidates only. `CHAMELEON_STRIP_CONTRAST=0` or `options['strip_contrast']=False` turns them off.
+
+| Full engine, 120 strips, back to back | Off | On |
+|---|---|---|
+| Passes every engine check | 61.7% | **66.7%** (6 gained, 0 lost) |
+| Contrast regression | 11.7% | 9.2% |
+| Appeal clearly higher / lower | | 10 / 6 |
+| Median time per strip | 13.0 s | 12.7 s |
+
+Held-out pairs are unchanged (92.0% pass). Before/after renders: `strip-contrast-before-after.png`.
+
+Still failing: an aspect-locked panel that cannot hold its copy at strip height (for example a 373×548 dark panel at 90 px tall), and copy that cannot be readable under the protected fields.
+
 ## Strip adapter (2026-10-28): built, off by default
 
 `training/retarget/adapter.py` adds a low-rank (LoRA) correction to the frozen model's decoder and output heads. It has 47,616 parameters, rank 4, against the model's 4M. Its strength follows the target's aspect ratio: 0 below 3:1, ramping to 1 at 4:1, wide or tall. Below 3:1 every prediction is bit-identical to the base model, and a test checks this.

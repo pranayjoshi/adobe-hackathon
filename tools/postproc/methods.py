@@ -170,3 +170,10 @@ def engine_on_adapter(src, target, A, recs):
     import os
     os.environ['CHAMELEON_STRIP_ADAPTER'] = '1'
     return _engine(src, target, A, recs, 'solver')
+
+
+def engine_on_no_contrast(src, target, A, recs):
+    """engine_on without the strip legibility fixes (CHAMELEON_STRIP_CONTRAST=0)."""
+    import os
+    os.environ['CHAMELEON_STRIP_CONTRAST'] = '0'
+    return _engine(src, target, A, recs, 'solver')

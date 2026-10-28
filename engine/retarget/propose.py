@@ -253,7 +253,16 @@ def candidates(source, target, A, options, events):
         return []
     if postproc(options) == 'solver' and out:
         out = solved(source, target, A, out[0][3], events, options) + out
-    return [(t, n, d, keep_bleed(source, design)) for t, n, d, design in out]
+    out = [(t, n, d, keep_bleed(source, design)) for t, n, d, design in out]
+    from .strip import is_strip
+    from .contrast import enabled
+    if is_strip(target) and enabled(options):
+        # copy squeezed off its legible area moves to the nearest legible spot (engine/retarget/contrast.py)
+        from ..quality import text_contrast
+        from .contrast import keep_contrast
+        src = text_contrast(source)[0]
+        out = [(t, n, d, keep_contrast(source, design, A, src=src)) for t, n, d, design in out]
+    return out
 
 
 
@@ -336,7 +345,8 @@ def solved(source, target, A, warm, events, options=None):
         recs = records(source, A)
         W, H = float(source['canvas']['width']), float(source['canvas']['height'])
         boxes, probs, _ = predict_dist(recs, W, H, float(target['width']), float(target['height']), k=1)
-        P = Problem(source, target, A, recs, _priors())
+        from .contrast import enabled
+        P = Problem(source, target, A, recs, _priors(), backdrop=enabled(options))
         if P.strip:
             warm = compose(P)
             out.append(('learned_strip', 'Strip layout', 'The content in reading order along the strip', warm))

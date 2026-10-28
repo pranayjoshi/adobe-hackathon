@@ -228,7 +228,7 @@ def _inside(a, b):
 class Problem:
     """Everything about one (source, target) that does not depend on the seed."""
 
-    def __init__(self, source, target, A, recs, priors=None):
+    def __init__(self, source, target, A, recs, priors=None, backdrop=True):
         from .deoverlap import DECOR_MIN, backed, merge
         from .propose import _units
         self.source, self.target, self.A = source, target, A
@@ -243,6 +243,11 @@ class Problem:
         self.strip = is_strip(target)
         self.long_axis = long_axis(target)
         cover = {r['id'] for r in recs if r['cover']}
+        if self.strip and backdrop:
+            # A near-canvas bottom image (85%+ of the canvas, the rules let it switch to a cover crop)
+            # is the backdrop the copy reads against; packed as a unit it shrinks to a swatch.
+            cover |= {e['id'] for e in source['elements'] if e['type'] == 'image'
+                      and background_cover_allowed(source, e, {**e, 'fit': 'cover'})}
         self.cover = cover
         W, H = self.W, self.H
         groups = [u for u in _units(source, A) if not (set(u) & cover)]

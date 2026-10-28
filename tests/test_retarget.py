@@ -297,6 +297,27 @@ class StripAdapterTests(unittest.TestCase):
         self.assertFalse((adapted.sample(t, f, g, k=1, gate=1.0) == same).all())
 
 
+class StripContrastTests(unittest.TestCase):
+    def test_white_copy_off_its_dark_panel_moves_back_onto_it(self):
+        from engine.analysis import analyze
+        from engine.retarget.contrast import keep_contrast
+        from engine.quality import text_contrast
+        panel = {'id': 'p', 'type': 'shape', 'x': 0, 'y': 0, 'width': 400, 'height': 300, 'fill_color': 'rgba(20,20,20,1)', 'z_index': 1}
+        text = {'id': 't', 'type': 'text', 'x': 40, 'y': 120, 'width': 300, 'height': 50, 'content': 'Sale', 'font_family': 'Inter',
+                'font_size': 40, 'color': 'rgba(255,255,255,1)', 'text_align': 'left', 'z_index': 2}
+        bg = {'id': 'bg', 'type': 'shape', 'x': 0, 'y': 0, 'width': 1200, 'height': 300, 'fill_color': 'rgba(255,255,255,1)', 'z_index': 0}
+        source = {'canvas': {'width': 1200, 'height': 300}, 'elements': [bg, panel, text]}
+        strip = {'canvas': {'width': 800, 'height': 90}, 'elements': [
+            dict(bg, width=800, height=90), dict(panel, x=0, y=0, width=200, height=90), dict(text, x=500, y=25, width=120, height=40, font_size=30)]}
+        A = analyze(source)
+        self.assertLess(text_contrast(strip)[0]['t'], 3)
+        fixed = keep_contrast(source, strip, A)
+        t = next(e for e in fixed['elements'] if e['id'] == 't')
+        self.assertGreaterEqual(text_contrast(fixed)[0]['t'], 3)
+        self.assertLessEqual(t['x'] + t['width'], 200.5)
+        self.assertEqual((t['font_size'], t['color'], t['width']), (30, text['color'], 120))
+
+
 class RenderPoolTests(unittest.TestCase):
     def test_warm_worker_renders_match_fresh_processes_and_survive_a_crash(self):
         import os
