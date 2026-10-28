@@ -91,15 +91,49 @@ From 2,000 train designs, each given one random strip format, 872 targets passed
 
 ## Human preference (primary target)
 
-There are two voting pages, both private until shared: https://claude.ai/artifact/XnjGXRU4gr2rsWZ7FChGAK (round 0) and https://claude.ai/artifact/B8ZsoHd5VaGeLKgKRsUW3c (rounds 1 and strips). An artifact version holds at most 511 files, so the rounds are split across two pages.
+There are three voting pages, all private until shared with raters as Contributors. An artifact version holds at most 511 files, so the rounds are split across pages.
 
-| Round | Arms | Designs | Status |
-|---|---|---|---|
-| r0 | today's engine vs designer's own render | 101 test | live, no votes yet |
-| r1 | new vs today's engine | 88 val | live, no votes yet |
-| rs | new vs today's engine, strips | 60 | live, no votes yet |
+| Page | Round | Arms | Designs | Votes (2026-10-28) |
+|---|---|---|---|---|
+| https://claude.ai/artifact/XnjGXRU4gr2rsWZ7FChGAK | r0 | today's engine vs designer | 101 test | 0 |
+| https://claude.ai/artifact/B8ZsoHd5VaGeLKgKRsUW3c | r1 | new vs today's engine | 88 val | 0 |
+| same | rs | new vs today's engine, strips | 60 | 1 (new won) |
+| https://claude.ai/artifact/KYvR4M7jBYQosnWt5ukjPF | r2 | new vs today's engine | 101 test | 0 |
+| same | r2d | new vs designer | 101 test | 0 |
 
-The primary targets (≥ 65% vs today, ≥ 40% vs designer, ≤ 5% broken) cannot be judged until votes come in. The appeal scorer should also be re-validated against those votes (plan 3.6) before its ranking is trusted further.
+How the rounds were made:
+- **Every arm uses the same renderer.** The designer arm is the designer's own resize geometry, drawn with the source layers by our renderer (`tools/postproc/prefs/render_designer.py`). Crello's own previews use the true fonts and effects and would give that side away. Round 0 first used those previews; on 2026-10-28 its designer images were replaced with same-renderer ones before any vote.
+- **"Today's engine" is the committed engine with post-processing off.** These renders were made before the solver became the default (rounds r0, r1, rs and r2 reuse them).
+- **Round 2's new arm was rendered from commit b3d7463** in a clean checkout, without the strip adapter that is still in progress. It passed every engine check in 100 of 101 designs.
+- Image file names on the round-2 page are hashed. The key is in `work/postproc/prefs/r2/opaque_names.json`.
+
+The primary targets (≥ 65% vs today, ≥ 40% vs designer, ≤ 5% broken) cannot be judged until votes come in. Round 2 on the test split is the one to report.
+
+## Weight tuning (P5)
+
+`tools/postproc/tune.py` searched the solver's soft-cost weights on 60 train-split designer pairs. It tried 10 settings: the defaults plus 9 random ones within 3× of each weight. The objective was mean appeal, with layouts failing an engine check charged 0.3.
+
+| Setting | Objective | Passes engine checks |
+|---|---|---|
+| best random (config 6) | 0.126 | 73.3% |
+| defaults | 0.121 | 73.3% |
+| next three | 0.109–0.113 | 70.0% |
+
+The best setting beats the defaults by 0.005 ± 0.020 (paired, 95%) and is worse on 23 of 60 designs, better on 17. No setting is reliably better, so **the defaults are kept**. That also means the round-2 renders use the final weights. Raw results: `work/postproc/runs/tune.json`.
+
+## Appeal scorer: realistic check
+
+On held-out designs, the scorer ranks a designer's resize above the same resize with one principle broken 81% of the time. A harder check uses 120 val-split pairs (not in any tuning or voting set) and compares the designer's resize with today's output (`tools/postproc/appeal/validate.py`):
+
+| | Result |
+|---|---|
+| Designer scored above today | 55.8% |
+| … when today fails an engine check (51 pairs) | 66.7% |
+| … when today passes (69 pairs) | 47.8% |
+| Solver scored above today | 58.5% |
+| Passes engine checks: today / solver | 57.5% / 61.9% |
+
+This check is confounded: the designer layout fails the engine's checks in every case, because it is rebuilt from the source's layers with unmatched elements stretched. The scorer partly rewards passing checks. Even so, where today's output passes, the scorer cannot tell it from the designer's, so it should not be read as a measure of taste. It ranks candidates mostly by rule health plus coarse layout statistics. Human votes are the only real test of it. Until then, appeal-ranked selection should be read as "pick the cleanest valid candidate".
 
 ## Reproduce
 
