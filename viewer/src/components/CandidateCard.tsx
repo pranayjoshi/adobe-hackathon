@@ -1,4 +1,5 @@
 import { download } from "../api";
+import { methodOf } from "../method";
 import type { Candidate } from "../types";
 import { Preview } from "./Preview";
 import { Bar, Icon, ScoreRing } from "./ui";
@@ -18,6 +19,7 @@ export function CandidateCard({ c, rank, name, showOverlay, roleOf, labelOf, onO
   const { width, height } = c.design.canvas;
   const issues = c.score.issues;
   const worst = issues.find((i) => i.severity === "error") ?? issues.find((i) => i.severity === "warn");
+  const method = methodOf(c.template);
   return (
     <article
       className={`group panel animate-rise flex flex-col overflow-hidden transition hover:border-white/15 hover:bg-ink-850/90 ${wide ? "xl:flex-row" : ""}`}
@@ -61,6 +63,11 @@ export function CandidateCard({ c, rank, name, showOverlay, roleOf, labelOf, onO
                 <span className="rounded-full bg-rose-400/10 px-1.5 py-0.5 text-[10px] font-medium text-rose-300">invalid</span>
               )}
             </div>
+            <p className="mt-1 flex flex-wrap items-center gap-1.5 text-[10px]" title={method.detail + (typeof c.appeal === "number" ? ` · appeal score ${c.appeal.toFixed(2)}` : "")}>
+              <span className={`rounded-full px-1.5 py-0.5 font-medium ${method.learned ? "bg-sky-400/10 text-sky-300" : "bg-white/[0.06] text-zinc-400"}`}>{method.label}</span>
+              {method.detail.includes("+") && <span className="text-zinc-500">{method.detail.slice(method.detail.indexOf("+"))}</span>}
+              {c.preferred_learned && <span className="text-emerald-300">{typeof c.appeal === "number" ? "picked by appeal" : "preferred layout"}</span>}
+            </p>
             <p className="mt-0.5 line-clamp-2 text-xs leading-relaxed text-zinc-500">{c.description}</p>
           </div>
         </div>

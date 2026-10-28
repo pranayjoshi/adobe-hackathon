@@ -84,6 +84,8 @@ export type Candidate = {
   diagnostics?: {overflow:string[];small_text:string[];collisions:unknown[];contrast:Record<string,number>;contrast_regressions:string[];render_mode:string};
   trace?: unknown[];
   template: string;
+  appeal?: number;            // learned appeal score (0-1) when appeal selection ranked it
+  preferred_learned?: boolean;
   name: string;
   description: string;
   design: Design;

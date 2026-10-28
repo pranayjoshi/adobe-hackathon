@@ -35,6 +35,22 @@
       ],
       "port": 8766,
       "autoPort": false
+    },
+    {
+      "name": "viewer-latest",
+      "runtimeExecutable": "/usr/bin/env",
+      "runtimeArgs": [
+        "CHAMELEON_API=http://127.0.0.1:8766",
+        "viewer/node_modules/.bin/vite",
+        "viewer",
+        "--host",
+        "127.0.0.1",
+        "--port",
+        "5181",
+        "--strictPort"
+      ],
+      "port": 5181,
+      "autoPort": false
     }
   ]
 }
