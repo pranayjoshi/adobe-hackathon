@@ -62,6 +62,29 @@ Times are from the harness at 8-way parallel load, so they overstate idle latenc
 - **Latency is at the limit.** On a near-idle machine, the full engine on 8 test designs took a median 15.0 s (max 34.0 s), against 11.5 s (max 18.8 s) with post-processing off. The plan's guardrail is a 15 s median. Under heavy load it reached 67–71 s. The solver runs once per profile, so dropping the "bold" profile or verify rounds is the lever if the human rounds do not need them.
 - **Visual judge.** No OpenJev server was available, so selection uses the appeal score alone, which the plan allows.
 
+## In the app (full engine, 2026-10-27)
+
+The new post-processing is now **on by default**. `CHAMELEON_POSTPROC=off` (or the request option `postproc: off`) switches it off. The full engine's top pick, as the app shows it first, on 200 held-out pairs and 120 extreme strips. Both arms include the fixes below:
+
+| | Held-out, off | Held-out, on | Strips, off | Strips, on |
+|---|---|---|---|---|
+| Passes every engine check | 88.5% | **91.0%** | 52.5% | **60.0%** |
+| A learned layout is picked | 90.5% | 92.5% | 71.7% | 81.7% |
+| Text below readable floor | 5.0% | 4.5% | 30.8% | 25.8% |
+| Hidden element | 1.0% | 0.0% | 7.5% | 5.8% |
+| Mean appeal score | 0.194 | **0.245** | 0.082 | **0.124** |
+| Appeal clearly higher (on vs off) | | 112 vs 4 | | 60 vs 7 |
+| IoU to designer | 0.290 | 0.278 | | |
+| Median time per size (4 jobs in parallel) | 5.5 s | 9.1 s | 9.6 s | 18.4 s |
+
+Fixes made while testing the real app path:
+- **Warm renderer** (`engine/render_pool.py`). Each pixel check used to start a new renderer process, and about 1.3 s of every check was the renderer import. Warm worker processes give pixel-identical renders about 6.5× faster. They are replaced after a crash, a timeout or 40 renders. `CHAMELEON_RENDER_POOL=0` restores one process per render. Idle median per size: 15.0 s → 9.8 s with the solver, and 11.5 s → 6.1 s without it.
+- **Solver deadline.** One 5 s budget is shared by both styles (`solver_budget`). The worst case went from 16 s to 5 s.
+- **Background bleed.** A background photo that peeked out past the panel above it in the source was fitted exactly under that panel, which counts as deleting it. Every learned candidate then failed the rubric gate, and some sizes returned no layout at all. `keep_bleed` re-opens the layer inside the canvas.
+- **Wrapping options.** The engine wraps lines without counting letter spacing but measures widths with it, so the valid widths are not monotonic. Bisection skipped the 3–4-line wrappings, and the solver called simple designs infeasible in narrow formats. It now scans a ladder of widths.
+
+Not fixable by post-processing: copy that cannot be readable at all in the target, such as a letter-spaced word in a 160-px-wide strip. Letter spacing and rotation are protected fields.
+
 ## Synthetic strips
 
 From 2,000 train designs, each given one random strip format, 872 targets passed every engine check and were kept (`work/postproc/strips/synthetic.jsonl`). 540 came from the composer and 332 from the solver; every format has 69–154 targets. The other 1,128 had no candidate that passed. These are ready to add as extra (source, target) pairs in the next model update. They are not yet used.

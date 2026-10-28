@@ -5,6 +5,7 @@ from pathlib import Path
 from PIL import Image, ImageColor, ImageDraw, ImageOps, ImageStat
 from .canonical import ASSETS_DIR, FONTS_DIR, ROOT, Box, element_box, rotated_extent, union_all
 from .typography import measure
+from . import render_pool
 _RENDER_LOCK = threading.RLock()
 _CACHE: dict[str, Image.Image] = {}
 _CACHE_MAX_BYTES=128*1024*1024
@@ -65,7 +66,7 @@ def verify_design(design, output_path=None, profile=VERIFICATION_PROFILE, timeou
                 with tempfile.TemporaryDirectory(prefix='chameleon-verify-') as folder:
                     task=Path(folder)/'design.json';png=Path(folder)/'render.png';meta=Path(folder)/'meta.json'
                     task.write_text(payload)
-                    process=subprocess.run([sys.executable,'-m','engine.render_worker',str(task),str(png),str(max_size or int(max(w,h))),str(meta)],cwd=ROOT,stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL,timeout=max(.01,float(timeout)))
+                    process=render_pool.run([str(task),str(png),str(max_size or int(max(w,h))),str(meta)],timeout=max(.01,float(timeout)))
                     if process.returncode or not png.is_file():
                         detail=json.loads(meta.read_text()).get('error') if meta.is_file() else None
                         raise RuntimeError(detail or 'Official renderer failed')

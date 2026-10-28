@@ -246,7 +246,7 @@ def _generate_legacy(source, target, emphasis="balanced", top_k=3, analysis=None
         # Verify newly promoted winners too: pixel evidence can change ranking.
         verified_ids=set()
         while True:
-            results=_prefer_learned(results,rank,source,A)
+            results=_prefer_learned(results,rank,source,A,options)
             pending=[r for r in results[:max(1,min(3,top_k))] if r['id'] not in verified_ids]
             if not pending:break
             for r in pending:
@@ -256,7 +256,7 @@ def _generate_legacy(source, target, emphasis="balanced", top_k=3, analysis=None
     for r in results:
         r["trace"].append({"roles":role_status,"events":events,"elapsed_ms":round((time.monotonic()-started)*1000)})
     results.sort(key=rank,reverse=True)
-    results=_prefer_learned(results,rank,source,A)
+    results=_prefer_learned(results,rank,source,A,options)
     if all_candidates:return results
     lead=results[:1] if results and results[0].get('preferred_learned') else []
     if _provider_workflow(options):
@@ -331,13 +331,13 @@ def _learned_eligible(r,source=None):
     return not (defects-LEARNED_SOFT_DEFECTS) and not r['diagnostics'].get('collisions') and not r['diagnostics'].get('contrast_regressions')
 
 
-def _appeal_selection():
-    import os
+def _appeal_selection(options=None):
     from .retarget import appeal
-    return os.environ.get('CHAMELEON_POSTPROC','')=='solver' and appeal.available()
+    from .retarget.propose import postproc
+    return postproc(options)=='solver' and appeal.available()
 
 
-def _prefer_learned(results,rank,source=None,A=None):
+def _prefer_learned(results,rank,source=None,A=None,options=None):
     """Designer-trained layouts win over templates whenever they pass every hard check; among
     them the rubric decides. Otherwise the existing ranking stands."""
     for r in results:r.pop('preferred_learned',None)
@@ -348,7 +348,7 @@ def _prefer_learned(results,rank,source=None,A=None):
         results=[r for r in results if not bad(r)]+[r for r in results if bad(r)]
     learned=[r for r in results if 'learned_' in r['template'] and _learned_eligible(r,source)]
     if not learned:return results
-    if source is not None and _appeal_selection():
+    if source is not None and _appeal_selection(options):
         # Constrained decoding is on: every eligible learned layout is valid, so people's
         # preference (the learned appeal score) picks among them.
         from .retarget import appeal
@@ -366,7 +366,7 @@ def _prefer_learned(results,rank,source=None,A=None):
     # learned layout come last.
     def order(r):
         t=r['template']
-        # learned_s0: the constrained decoding of the greedy layout (CHAMELEON_POSTPROC=solver)
+        # learned_s0: the constrained decoding of the greedy layout (post-processing 'solver')
         return (t.startswith(('refined_','solver_')),not t.startswith(('learned_s0','learned_0')),not t.startswith('learned_s0'),'_bound' in t,not t.endswith('_raw'),t)
     best=min(learned,key=order);best['preferred_learned']=True
     return [best]+[r for r in results if r is not best]

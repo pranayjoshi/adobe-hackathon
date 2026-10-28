@@ -152,25 +152,20 @@ def text_options(el, f_ref, max_lines):
     f_ref = max(4, int(round(f_ref)))
     wide = measure(el, f_ref, 1e6)
     l_min = wide.lines
-    words = str(el.get('content', '')).split()
     hi = wide.line_width + 2
-    lo = 1.0
-    # minimal width that still gives at most L lines, by bisection on the greedy wrap
+    # The narrowest width that gives each line count without overflow. Wrapping ignores tracking
+    # while the drawn width includes it, so validity is not monotonic in the width: scan a fine
+    # ladder of widths instead of bisecting (bisection skips the narrow windows between counts).
+    best = {}
+    width = hi
+    while width >= max(4.0, hi / 16):
+        f = measure(el, f_ref, width)
+        if not f.overflow and f.lines <= max(l_min, max_lines):
+            best[f.lines] = width
+        width *= 0.98
     opts, seen = [], set()
-    for L in range(l_min, max(l_min, max_lines) + 1):
-        a_, b_ = lo, hi
-
-        def ok(width):
-            f = measure(el, f_ref, width)
-            return f.lines <= L and not f.overflow
-        if not ok(b_):
-            continue
-        for _ in range(22):
-            mid = (a_ + b_) / 2
-            if ok(mid):
-                b_ = mid
-            else:
-                a_ = mid
+    for L in sorted(best):
+        b_ = best[L]
         fit = measure(el, f_ref, b_)
         if fit.lines in seen:
             continue
@@ -184,8 +179,6 @@ def text_options(el, f_ref, max_lines):
         b = w1 - a * f_ref
         c = fit.height / f_ref
         opts.append(TextOption(fit.lines, a, b, c, b_, _line_cost(lines, el.get('text_align', 'left'))))
-        if len(words) <= fit.lines:
-            break
     return opts
 
 
@@ -382,11 +375,17 @@ def _prior(P, key, q, default):
     return pri.get(q, default) if isinstance(pri, dict) else default
 
 
-def solve(P, seed_boxes, probs, weights=None, time_limit=0.25, extra_pairs=(), hint=None, rounds=6, disable=(), workers=8):
-    """Solve, relaxing soft-able hard constraints (hierarchy, containment) if the model is infeasible."""
+def solve(P, seed_boxes, probs, weights=None, time_limit=0.25, extra_pairs=(), hint=None, rounds=6, disable=(), workers=8,
+          deadline=None):
+    """Solve, relaxing soft-able hard constraints (hierarchy, containment) if the model is infeasible.
+    deadline: time.monotonic() value after which no new round or relaxation starts."""
+    import time
     sol = fallback = None
     for extra in RELAX:
-        sol = _solve_once(P, seed_boxes, probs, weights, time_limit, extra_pairs, hint, rounds, tuple(disable) + extra, workers)
+        if deadline is not None and time.monotonic() > deadline and (sol is not None or fallback is not None):
+            break
+        sol = _solve_once(P, seed_boxes, probs, weights, time_limit, extra_pairs, hint, rounds, tuple(disable) + extra, workers,
+                          deadline)
         if sol is not None and sol.design is not None:
             if extra:
                 sol.notes.append('relaxed:' + '+'.join(extra))
@@ -396,7 +395,8 @@ def solve(P, seed_boxes, probs, weights=None, time_limit=0.25, extra_pairs=(), h
     return fallback or sol
 
 
-def _solve_once(P, seed_boxes, probs, weights=None, time_limit=0.25, extra_pairs=(), hint=None, rounds=6, disable=(), workers=8):
+def _solve_once(P, seed_boxes, probs, weights=None, time_limit=0.25, extra_pairs=(), hint=None, rounds=6, disable=(), workers=8,
+                deadline=None):
     """hint: a design (e.g. today's pipeline output or the previous round) to warm-start the search."""
     """Solve for one seed. seed_boxes: decoded model boxes per record (same order as P.recs);
     probs: [n, 5, N_BINS] distributions for that seed. Returns a Solution."""
@@ -416,7 +416,13 @@ def _solve_once(P, seed_boxes, probs, weights=None, time_limit=0.25, extra_pairs
     force = set()  # pairs the rubric flags at element level: always fully separated
     notes = []
     best = None
+    import time
     for rnd in range(rounds):
+        if deadline is not None and best is not None and time.monotonic() > deadline:
+            # out of time: the last solution keeps the violations this round would have fixed
+            notes.append(f'round{rnd}:deadline')
+            best.incomplete = best.design is not None
+            break
         m = cp_model.CpModel()
         X, Y, S, F, TW, TH, OPT = {}, {}, {}, {}, {}, {}, {}
         UT = {}  # unit text id -> (left, top, width, height) expressions
@@ -812,7 +818,10 @@ def _solve_once(P, seed_boxes, probs, weights=None, time_limit=0.25, extra_pairs
         sv = cp_model.CpSolver()
         # deterministic work budget (reproducible under any machine load); wall clock only as a cap
         sv.parameters.max_deterministic_time = time_limit
-        sv.parameters.max_time_in_seconds = 4 * time_limit + 2
+        cap = 4 * time_limit + 2
+        if deadline is not None:
+            cap = min(cap, max(0.3, deadline - time.monotonic()))
+        sv.parameters.max_time_in_seconds = cap
         sv.parameters.num_workers = workers
         sv.parameters.random_seed = 1
         st = sv.Solve(m)

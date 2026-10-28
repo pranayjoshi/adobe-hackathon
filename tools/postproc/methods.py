@@ -146,3 +146,20 @@ def final(src, target, A, recs, time_limit=1.5, workers=8):
 
 def final_w1(src, target, A, recs):
     return final(src, target, A, recs, time_limit=1.2, workers=1)
+
+
+def _engine(src, target, A, recs, mode):
+    """The full engine's top pick (what the app shows first) with post-processing `mode`."""
+    import os
+    os.environ['CHAMELEON_POSTPROC'] = mode
+    from engine.pipeline import generate
+    r = generate(src, target, top_k=1, options={'learned_retarget': True})[0]
+    return r['design'], {'pick': r['template'], 'valid': r['valid']}
+
+
+def engine_on(src, target, A, recs):
+    return _engine(src, target, A, recs, 'solver')
+
+
+def engine_off(src, target, A, recs):
+    return _engine(src, target, A, recs, 'off')

@@ -237,8 +237,71 @@ def candidates(source, target, A, options, events):
     except (ValueError, OSError, KeyError) as exc:
         events.append({'learned_retarget': f'unavailable: {exc}'})
         return []
-    if options.get('postproc', os.environ.get('CHAMELEON_POSTPROC', '')) == 'solver' and out:
+    if postproc(options) == 'solver' and out:
         out = solved(source, target, A, out[0][3], events, options) + out
+    return [(t, n, d, keep_bleed(source, design)) for t, n, d, design in out]
+
+
+
+def postproc(options=None):
+    """Post-processing for learned layouts: 'solver' (constrained decoding and appeal-ranked
+    selection, the default) or 'off' (today's materialize, fit and de-overlap only). Set per
+    request with options['postproc'] or for the process with CHAMELEON_POSTPROC."""
+    import os
+    mode = str((options or {}).get('postproc') or os.environ.get('CHAMELEON_POSTPROC') or 'solver')
+    return 'solver' if mode == 'solver' else 'off'
+
+
+def keep_bleed(source, design):
+    """A layer that showed past the opaque layer above it in the source (often a background photo
+    peeking out at one edge) must not end up fully covered: that deletes it in effect, which the
+    engine's rubric rejects. Re-open it on the side it showed in the source, inside the canvas:
+    grow it to the canvas edge if that is enough, else inset the covering layer by a few pixels."""
+    from ..rubric import _contains, _covered, _opaque, _order
+    from ..canonical import rotated_extent
+    newly = _covered(design) - _covered(source)
+    if not newly:
+        return design
+    import copy
+    src = {e['id']: e for e in source['elements']}
+    sW, sH = source['canvas']['width'], source['canvas']['height']
+    W, H = design['canvas']['width'], design['canvas']['height']
+    clip = lambda b, w, h: (max(b.x, 0), max(b.y, 0), min(b.x1, w), min(b.y1, h))
+    out = copy.deepcopy(design)
+    by = {e['id']: e for e in out['elements']}
+    order = _order(out)
+    for i in newly:
+        e = by.get(i)
+        if e is None or i not in src or e.get('rotation'):
+            continue
+        over = [c for c in out['elements'] if c is not e and order[c['id']] > order[i] and _opaque(c)
+                and _contains(rotated_extent(c), rotated_extent(e)) and c['id'] in src and not c.get('rotation')]
+        if not over:
+            continue
+        # the side where this layer showed past its covers inside the source canvas
+        sl, st, sr, sb = clip(rotated_extent(src[i]), sW, sH)
+        cl = [clip(rotated_extent(src[c['id']]), sW, sH) for c in over]
+        excess = {'l': min(c[0] for c in cl) - sl, 't': min(c[1] for c in cl) - st,
+                  'r': sr - max(c[2] for c in cl), 'b': sb - max(c[3] for c in cl)}
+        side = max(excess, key=excess.get)
+        if excess[side] <= 0:
+            continue
+        horiz = side in 'lr'
+        pad = max(2.0, round(0.01 * (W if horiz else H)))
+        k0, k1, lim = ('x', 'width', W) if horiz else ('y', 'height', H)
+        lo = min(c[k0] for c in over); hi = max(c[k0] + c[k1] for c in over)
+        if side in 'lt' and lo - pad >= 0:
+            e[k1] += e[k0] - (lo - pad); e[k0] = lo - pad
+        elif side in 'rb' and hi + pad <= lim:
+            e[k1] = hi + pad - e[k0]
+        else:
+            for c in over:
+                if c.get('type') == 'image' and c.get('fit') not in ('cover', None):
+                    continue  # a fill-fit image would be distorted by an inset
+                if side in 'lt':
+                    cut = max(0.0, e[k0] + pad - c[k0]); c[k0] += cut; c[k1] -= cut
+                else:
+                    c[k1] = min(c[k1], e[k0] + e[k1] - pad - c[k0])
     return out
 
 
@@ -263,9 +326,13 @@ def solved(source, target, A, warm, events, options=None):
         if P.strip:
             warm = compose(P)
             out.append(('learned_strip', 'Strip layout', 'The content in reading order along the strip', warm))
-        for name, wts in SOLVER_PROFILES.items():
-            sol = solve(P, boxes[0], probs[0], weights=wts, time_limit=float(options.get('solver_seconds', 1.5)), hint=warm,
-                        workers=int(options.get('solver_workers', 8)))
+        # One shared deadline across the profiles, so a hard layout cannot hold up the request.
+        import time
+        deadline = time.monotonic() + float(options.get('solver_budget', 5.0))
+        sols = [(name, solve(P, boxes[0], probs[0], weights=wts, time_limit=float(options.get('solver_seconds', 1.5)), hint=warm,
+                             workers=int(options.get('solver_workers', 8)), deadline=deadline))
+                for name, wts in SOLVER_PROFILES.items()]
+        for name, sol in sols:
             if sol is not None and sol.design is not None:
                 out.append((f'learned_s0_{name}', 'Learned layout (solved)', 'The model\'s most likely layout that satisfies every check', sol.design))
                 events.append({'learned_solver': {'profile': name, 'status': sol.status, 'notes': sol.notes[-3:]}})

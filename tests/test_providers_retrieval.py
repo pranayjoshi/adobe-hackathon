@@ -93,7 +93,8 @@ class ProviderContractTests(unittest.TestCase):
         with mock.patch('engine.repair.repair', record):
             pipeline.generate(src, target, options={'solver': False, 'refine': False, 'render': False}, all_candidates=True)
         proposals, _, results = legacy_proposals(build_context(src, target))
-        expected = [d for t, _, _, d in proposals if t not in ('identity', 'source_frame')]
+        # solved learned layouts already satisfy every check, so the pipeline assesses them unrepaired
+        expected = [d for t, _, _, d in proposals if t not in ('identity', 'source_frame') and not t.startswith(('learned_s0', 'learned_strip'))]
         self.assertEqual(seen, expected)
         self.assertEqual({r.provider: r.status for r in results}['vlm'], 'skipped')
 

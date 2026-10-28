@@ -230,6 +230,56 @@ class SolverTests(unittest.TestCase):
         self.assertEqual(_collapse_floor({'canvas': {'width': 1080, 'height': 1080}}), .5)
 
 
+class PostprocDefaultTests(unittest.TestCase):
+    def test_solver_post_processing_is_on_unless_switched_off(self):
+        import os
+        from unittest import mock
+        from engine.retarget.propose import postproc
+        with mock.patch.dict(os.environ, {}, clear=False):
+            os.environ.pop('CHAMELEON_POSTPROC', None)
+            self.assertEqual(postproc({}), 'solver')
+            self.assertEqual(postproc({'postproc': 'off'}), 'off')
+            os.environ['CHAMELEON_POSTPROC'] = 'off'
+            self.assertEqual(postproc({}), 'off')
+            self.assertEqual(postproc({'postproc': 'solver'}), 'solver')
+
+    @unittest.skipUnless(weights_path().exists(), 'retarget weights not exported')
+    def test_solver_stops_starting_rounds_after_its_deadline(self):
+        import time
+        from engine.analysis import analyze
+        from engine.retarget.infer import predict_dist
+        from engine.retarget.propose import propose, records
+        from engine.retarget.solver import Problem, solve
+        source = json.loads(Path('input/chameleon_sample_level2_core.json').read_text())['source']
+        A = analyze(source); recs = records(source, A); target = {'width': 1200, 'height': 628}
+        boxes, probs, _ = predict_dist(recs, 1080, 1080, 1200, 628, k=1)
+        warm = dict(propose(source, target, A, k=1))['0']
+        t = time.monotonic()
+        sol = solve(Problem(source, target, A, recs), boxes[0], probs[0], time_limit=0.5, hint=warm, workers=2, deadline=time.monotonic())
+        self.assertLess(time.monotonic() - t, 4.0)
+        self.assertIsNotNone(sol)
+
+
+class RenderPoolTests(unittest.TestCase):
+    def test_warm_worker_renders_match_fresh_processes_and_survive_a_crash(self):
+        import os
+        from unittest import mock
+        from PIL import ImageChops
+        from engine import quality, render_pool
+        design = json.loads(Path('input/chameleon_sample_level2_core.json').read_text())['source']
+        with mock.patch.dict(os.environ, {'CHAMELEON_RENDER_POOL': '0'}):
+            quality._CACHE.clear(); fresh = quality.verify_design(design, max_size=320)
+        quality._CACHE.clear(); warm = quality.verify_design(design, max_size=320)
+        if not fresh['verified']:
+            self.skipTest(fresh.get('error', 'renderer unavailable'))
+        self.assertTrue(warm['verified'], warm.get('error'))
+        self.assertIsNone(ImageChops.difference(fresh['image'], warm['image']).getbbox())
+        for w in list(render_pool._idle):
+            w.proc.kill(); w.proc.wait()  # a crashed worker is replaced on the next render
+        quality._CACHE.clear(); again = quality.verify_design(design, max_size=320)
+        self.assertTrue(again['verified'], again.get('error'))
+
+
 class AppealTests(unittest.TestCase):
     @unittest.skipUnless(Path('engine/models/appeal_features.joblib').exists(), 'appeal model not trained')
     def test_appeal_score_is_a_probability_and_prefers_the_intact_design(self):
