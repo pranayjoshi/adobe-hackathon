@@ -26,24 +26,28 @@ from pydantic import BaseModel, Field
 from engine.canonical import ASSETS_DIR, ROOT
 from engine.contracts import NoValidDesign
 from engine.pipeline import generate, uniform_stretch
-from engine.quality import verify_design
+from engine.quality import unverified_missing_asset_preview, verify_design
 from service.crello import router as crello_router
 
 HERE = ROOT / 'lite'
 OUT = ROOT / 'output' / 'lite'
 OUT.mkdir(parents=True, exist_ok=True)
 
-PRESETS = [
-    {'id': 'ig-post', 'label': 'Instagram Post', 'width': 1080, 'height': 1080},
-    {'id': 'ig-story', 'label': 'Story / Reel', 'width': 1080, 'height': 1920},
-    {'id': 'yt-thumb', 'label': 'YouTube Thumbnail', 'width': 1280, 'height': 720},
-    {'id': 'x-post', 'label': 'X Post', 'width': 1600, 'height': 900},
-    {'id': 'pin', 'label': 'Pinterest Pin', 'width': 1000, 'height': 1500},
-    {'id': 'li-banner', 'label': 'LinkedIn Banner', 'width': 1584, 'height': 396},
-    {'id': 'web-hero', 'label': 'Website Hero', 'width': 1600, 'height': 400},
-    {'id': 'billboard', 'label': 'Billboard Ad', 'width': 970, 'height': 250},
-    {'id': 'mrec', 'label': 'Medium Rectangle', 'width': 300, 'height': 250},
-    {'id': 'half-page', 'label': 'Half Page Ad', 'width': 300, 'height': 600},
+PRESETS = [  # the same catalogue as the main app
+    {'id': 'ig-post', 'group': 'Social', 'label': 'Instagram Post', 'width': 1080, 'height': 1080},
+    {'id': 'ig-portrait', 'group': 'Social', 'label': 'Instagram Portrait', 'width': 1080, 'height': 1350},
+    {'id': 'ig-story', 'group': 'Social', 'label': 'Story / Reel', 'width': 1080, 'height': 1920},
+    {'id': 'yt-thumb', 'group': 'Social', 'label': 'YouTube Thumbnail', 'width': 1280, 'height': 720},
+    {'id': 'x-post', 'group': 'Social', 'label': 'X / Twitter Post', 'width': 1600, 'height': 900},
+    {'id': 'li-banner', 'group': 'Social', 'label': 'LinkedIn Banner', 'width': 1584, 'height': 396},
+    {'id': 'fb-cover', 'group': 'Social', 'label': 'Facebook Cover', 'width': 1640, 'height': 624},
+    {'id': 'pin', 'group': 'Social', 'label': 'Pinterest Pin', 'width': 1000, 'height': 1500},
+    {'id': 'web-hero', 'group': 'Web', 'label': 'Website Hero', 'width': 1600, 'height': 400},
+    {'id': 'leaderboard', 'group': 'Display ads', 'label': 'Leaderboard', 'width': 728, 'height': 90},
+    {'id': 'billboard', 'group': 'Display ads', 'label': 'Billboard', 'width': 970, 'height': 250},
+    {'id': 'mrec', 'group': 'Display ads', 'label': 'Medium Rectangle', 'width': 300, 'height': 250},
+    {'id': 'skyscraper', 'group': 'Display ads', 'label': 'Wide Skyscraper', 'width': 160, 'height': 600},
+    {'id': 'half-page', 'group': 'Display ads', 'label': 'Half Page', 'width': 300, 'height': 600},
 ]
 
 app = FastAPI(title='Chameleon Resize', version='1.0')
@@ -130,14 +134,28 @@ def _check(design):
             raise HTTPException(422, 'Image assets must come from brand_kit/assets.')
 
 
-def _save_render(design, folder, name):
-    """Render with the official renderer; returns the PNG file name, or None."""
+def _save_render(design, folder, name, notes=None):
+    """Render with the official renderer; returns the PNG file name, or None.
+
+    A design whose only problem is a missing brand-kit image (the challenge's Level 3 sample
+    does this on purpose) is drawn with the renderer's labelled placeholder instead, and the
+    missing files are added to `notes`.
+    """
     result = verify_design(design)
     image = result.get('image')
     if not result.get('verified') or image is None:
-        return None
+        fallback = unverified_missing_asset_preview(design)
+        image = fallback.get('image')
+        if image is None:
+            return None
+        if notes is not None:
+            notes.update(fallback.get('missing_assets', []))
     image.save(folder / f'{name}.png', format='PNG')
     return f'{name}.png'
+
+
+def _missing_note(notes):
+    return ('Missing image shown as a placeholder: ' + ', '.join(sorted(notes))) if notes else None
 
 
 def _run(rid):
@@ -150,17 +168,18 @@ def _run(rid):
     for i, item in enumerate(job['items']):
         item['state'] = 'running'
         target = {'width': item['width'], 'height': item['height']}
+        notes = set()
         t0 = time.monotonic()
         try:
             if same_shape(source, target):
                 design = scale_design(source, target)
                 (folder / f'{i}.json').write_text(json.dumps(design, indent=2))
-                png = _save_render(design, folder, str(i))
+                png = _save_render(design, folder, str(i), notes)
                 if png is None:
                     item.update(state='failed', error='The renderer could not draw this layout.')
                     continue
                 exact = (target['width'], target['height']) == (source['canvas']['width'], source['canvas']['height'])
-                item.update(state='done', render=png, design=f'{i}.json', method='original' if exact else 'scaled')
+                item.update(state='done', render=png, design=f'{i}.json', method='original' if exact else 'scaled', warning=_missing_note(notes))
                 continue
             stretch = uniform_stretch(source, target)
             item['stretch'] = _save_render(stretch, folder, f'{i}-stretch')
@@ -173,11 +192,11 @@ def _run(rid):
                 item.update(state='failed', error='No layout passed every check for this size.')
                 continue
             (folder / f'{i}.json').write_text(json.dumps(best['design'], indent=2))
-            png = _save_render(best['design'], folder, str(i))
+            png = _save_render(best['design'], folder, str(i), notes)
             if png is None:
                 item.update(state='failed', error='The renderer could not draw this layout.')
                 continue
-            item.update(state='done', render=png, design=f'{i}.json', method=best.get('template', ''))
+            item.update(state='done', render=png, design=f'{i}.json', method=best.get('template', ''), warning=_missing_note(notes))
         except Exception as exc:  # one bad size must not end the batch
             item.update(state='failed', error=f'{type(exc).__name__}: {exc}')
         finally:
@@ -219,10 +238,11 @@ def preview(req: PreviewRequest):
     folder = OUT / 'previews'
     folder.mkdir(exist_ok=True)
     name = uuid.uuid4().hex[:12]
-    png = _save_render(req.design, folder, name)
+    notes = set()
+    png = _save_render(req.design, folder, name, notes)
     if png is None:
-        raise HTTPException(422, 'The renderer could not draw this design (missing image or font?).')
-    return {'render': f'/files/previews/{png}'}
+        raise HTTPException(422, 'The renderer could not draw this design (missing font or unreadable image?).')
+    return {'render': f'/files/previews/{png}', 'warning': _missing_note(notes)}
 
 
 @app.post('/api/resize')

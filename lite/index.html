@@ -5,8 +5,8 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Chameleon Resize</title>
 <style>
-:root{--bg:#f6f6f4;--panel:#fff;--ink:#1b1b1a;--muted:#6b6a66;--line:#e3e2de;--accent:#2f6b4f;--accent-ink:#fff;--chip:#f0efeb;--bad:#a8402f}
-@media (prefers-color-scheme:dark){:root{--bg:#151514;--panel:#1e1e1c;--ink:#ecebe7;--muted:#9d9b95;--line:#33322f;--accent:#5fae86;--accent-ink:#0f1a14;--chip:#2a2927;--bad:#e0806f}}
+:root{--bg:#f6f6f4;--panel:#fff;--ink:#1b1b1a;--muted:#6b6a66;--line:#e3e2de;--accent:#2f6b4f;--accent-ink:#fff;--chip:#f0efeb;--bad:#a8402f;--warn:#8a6100}
+@media (prefers-color-scheme:dark){:root{--bg:#151514;--panel:#1e1e1c;--ink:#ecebe7;--muted:#9d9b95;--line:#33322f;--accent:#5fae86;--accent-ink:#0f1a14;--chip:#2a2927;--bad:#e0806f;--warn:#e0b45c}}
 *{box-sizing:border-box}
 body{margin:0;background:var(--bg);color:var(--ink);font:14px/1.45 system-ui,-apple-system,"Segoe UI",sans-serif}
 header{display:flex;align-items:baseline;gap:12px;padding:18px 24px;border-bottom:1px solid var(--line)}
@@ -27,6 +27,8 @@ section h2{margin:0 0 10px;font-size:12px;letter-spacing:.06em;text-transform:up
 .src img{max-width:100%;max-height:220px;display:block}
 .meta{color:var(--muted);font-size:12px;margin-top:6px}
 .chips{display:flex;flex-wrap:wrap;gap:6px}
+.group+.group{margin-top:10px}
+.glabel{font-size:11.5px;color:var(--muted);margin-bottom:5px}
 .chips button{border:1px solid var(--line);background:none;color:var(--ink);border-radius:99px;padding:5px 10px;cursor:pointer;font:inherit;font-size:12.5px}
 .chips button.on{background:var(--accent);color:var(--accent-ink);border-color:var(--accent)}
 .chips small{opacity:.7;margin-left:4px}
@@ -53,6 +55,7 @@ section h2{margin:0 0 10px;font-size:12px;letter-spacing:.06em;text-transform:up
 .spin{width:22px;height:22px;border:3px solid var(--line);border-top-color:var(--accent);border-radius:50%;animation:r 0.9s linear infinite}
 @keyframes r{to{transform:rotate(360deg)}}
 .err{color:var(--bad);font-size:13px;padding:14px}
+.warn{color:var(--warn);font-size:12px;margin-top:4px}
 .empty{color:var(--muted);text-align:center;margin-top:18vh}
 @media (max-width:820px){main{grid-template-columns:1fr}aside{position:static;max-height:none;border-right:0;border-bottom:1px solid var(--line)}}
 </style>
@@ -70,7 +73,7 @@ section h2{margin:0 0 10px;font-size:12px;letter-spacing:.06em;text-transform:up
   </section>
   <section>
     <h2>2 · Sizes</h2>
-    <div class="chips" id="chips"></div>
+    <div id="chips"></div>
     <div class="custom"><input id="cw" type="number" placeholder="Width" min="16" max="4096"><input id="ch" type="number" placeholder="Height" min="16" max="4096"><button id="add">Add size</button></div>
   </section>
   <button class="go" id="go" disabled>Resize</button>
@@ -123,20 +126,26 @@ async function setSource(d,title){
   source=null;sync();
   $('#src').innerHTML='<div class="spin"></div>';
   $('#srcmeta').textContent=`${title} · ${d.canvas?.width}×${d.canvas?.height} · ${d.elements?.length} layers`;
-  try{const r=await post('/api/preview',{design:d});$('#src').innerHTML=`<img src="${r.render}" alt="Source design">`;source=d}
+  try{const r=await post('/api/preview',{design:d});$('#src').innerHTML=`<img src="${r.render}" alt="Source design">`;source=d;
+    if(r.warning)$('#srcmeta').innerHTML+=`<div class="warn">${r.warning}</div>`}
   catch(e){srcError(e)}
   sync();
 }
 
+function group(name){
+  let g=[...$('#chips').children].find(x=>x.dataset.group===name);
+  if(!g){g=document.createElement('div');g.dataset.group=name;g.className='group';g.innerHTML=`<div class="glabel">${name}</div><div class="chips"></div>`;$('#chips').append(g)}
+  return g.lastChild;
+}
 function chip(s,preset){
   const key=s.width+'x'+s.height,b=document.createElement('button');
   b.innerHTML=`${s.label}<small>${s.width}×${s.height}</small>`;
   b.onclick=()=>{if(sizes.has(key)){sizes.delete(key);b.classList.remove('on');if(!preset)b.remove()}else{sizes.set(key,s);b.classList.add('on')}sync()};
-  $('#chips').append(b);return b;
+  group(preset?s.group||'Other':'Custom').append(b);return b;
 }
 async function loadPresets(){
   const ps=await api('/api/presets');
-  ps.forEach((p,i)=>{const b=chip(p,true);if(i===0||i===5){sizes.set(p.width+'x'+p.height,p);b.classList.add('on')}});sync();
+  ps.forEach(p=>{const b=chip(p,true);if(p.id==='ig-post'||p.id==='li-banner'){sizes.set(p.width+'x'+p.height,p);b.classList.add('on')}});sync();
 }
 $('#add').onclick=()=>{
   const w=+$('#cw').value,h=+$('#ch').value;
@@ -170,7 +179,7 @@ function draw(job){
     if(card&&card.dataset.sig===sig)return;
     const c=document.createElement('div');c.className='card';c.dataset.sig=sig;
     const note={original:'Same size: original kept',scaled:'Same shape: scaled, layout kept'}[it.method];
-    const head=`<div class="info"><b>${it.label}</b><span class="t">${it.width}×${it.height}${it.seconds?` · ${it.seconds}s`:''}</span>${note?`<span class="t" style="flex-basis:100%">${note}</span>`:''}</div>`;
+    const head=`<div class="info"><b>${it.label}</b><span class="t">${it.width}×${it.height}${it.seconds?` · ${it.seconds}s`:''}</span>${note?`<span class="t" style="flex-basis:100%">${note}</span>`:''}${it.warning?`<span class="warn" style="flex-basis:100%">${it.warning}</span>`:''}</div>`;
     if(it.state==='done'){
       c.innerHTML=`<div class="frame"><img src="${it.render}" alt="${it.label}"><span class="tag" hidden>Plain stretch</span></div>${head}
         <div class="acts">${it.stretch?'<button class="cmp" title="Hold to see a plain stretch of the original">Compare</button>':''}
