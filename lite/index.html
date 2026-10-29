@@ -169,7 +169,8 @@ function draw(job){
     const sig=it.state;
     if(card&&card.dataset.sig===sig)return;
     const c=document.createElement('div');c.className='card';c.dataset.sig=sig;
-    const head=`<div class="info"><b>${it.label}</b><span class="t">${it.width}×${it.height}${it.seconds?` · ${it.seconds}s`:''}</span></div>`;
+    const note={original:'Same size: original kept',scaled:'Same shape: scaled, layout kept'}[it.method];
+    const head=`<div class="info"><b>${it.label}</b><span class="t">${it.width}×${it.height}${it.seconds?` · ${it.seconds}s`:''}</span>${note?`<span class="t" style="flex-basis:100%">${note}</span>`:''}</div>`;
     if(it.state==='done'){
       c.innerHTML=`<div class="frame"><img src="${it.render}" alt="${it.label}"><span class="tag" hidden>Plain stretch</span></div>${head}
         <div class="acts">${it.stretch?'<button class="cmp" title="Hold to see a plain stretch of the original">Compare</button>':''}

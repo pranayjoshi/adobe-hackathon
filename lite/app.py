@@ -65,6 +65,46 @@ class PreviewRequest(BaseModel):
     design: dict[str, Any]
 
 
+# Targets whose aspect ratio is within this fraction of the source's count as the same shape.
+SAME_SHAPE = 0.03
+
+
+def same_shape(source, target):
+    """True when the target has the source's proportions, give or take SAME_SHAPE."""
+    a = source['canvas']['width'] / source['canvas']['height']
+    b = target['width'] / target['height']
+    return abs(b / a - 1) <= SAME_SHAPE
+
+
+def scale_design(source, target):
+    """The source, scaled to a same-shape target: the identical design at a new size.
+
+    Geometry follows each axis so layers still meet the canvas edges; text sizes, letter
+    spacing, strokes and corner radii follow the smaller scale so nothing grows past its box.
+    A target of the source's exact size returns the source unchanged.
+    """
+    W, H = source['canvas']['width'], source['canvas']['height']
+    if (target['width'], target['height']) == (W, H):
+        return json.loads(json.dumps(source))
+    sx, sy = target['width'] / W, target['height'] / H
+    s = min(sx, sy)
+    out = json.loads(json.dumps(source))
+    out['canvas'] = {**out['canvas'], 'width': target['width'], 'height': target['height']}
+    for e in out['elements']:
+        e.update(x=e['x'] * sx, y=e['y'] * sy, width=e['width'] * sx, height=e['height'] * sy)
+        if e['type'] == 'text':
+            e['font_size'] = max(1.0, e['font_size'] * s)
+            if e.get('letter_spacing'):
+                e['letter_spacing'] *= s
+            for run in e.get('style_runs') or []:
+                if isinstance(run.get('font_size'), (int, float)):
+                    run['font_size'] = max(1.0, run['font_size'] * s)
+        for key in ('stroke_width', 'corner_radius'):
+            if isinstance(e.get(key), (int, float)):
+                e[key] *= s
+    return out
+
+
 JOBS: dict[str, dict[str, Any]] = {}
 _queue: queue.Queue = queue.Queue()
 
@@ -112,6 +152,16 @@ def _run(rid):
         target = {'width': item['width'], 'height': item['height']}
         t0 = time.monotonic()
         try:
+            if same_shape(source, target):
+                design = scale_design(source, target)
+                (folder / f'{i}.json').write_text(json.dumps(design, indent=2))
+                png = _save_render(design, folder, str(i))
+                if png is None:
+                    item.update(state='failed', error='The renderer could not draw this layout.')
+                    continue
+                exact = (target['width'], target['height']) == (source['canvas']['width'], source['canvas']['height'])
+                item.update(state='done', render=png, design=f'{i}.json', method='original' if exact else 'scaled')
+                continue
             stretch = uniform_stretch(source, target)
             item['stretch'] = _save_render(stretch, folder, f'{i}-stretch')
             try:
