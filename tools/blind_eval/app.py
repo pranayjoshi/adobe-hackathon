@@ -1,0 +1,251 @@
+"""Blind A/B judging of the two engines by a panel of three, voting together on each pair.
+
+Build the study first with `tools.blind_eval.build`, then serve it on the local network:
+    .venv/bin/uvicorn tools.blind_eval.app:app --host 0.0.0.0 --port 8790
+
+Engine names never reach the browser unless a viewer turns blind mode off or opens the
+results, and each pair's left/right order is fixed by a seeded coin in pairs.json.
+"""
+from __future__ import annotations
+
+import csv
+import hashlib
+import io
+import json
+import os
+import random
+import sqlite3
+import threading
+import time
+from collections import Counter, defaultdict
+from pathlib import Path
+from typing import Literal
+
+from fastapi import FastAPI, HTTPException
+from fastapi.responses import FileResponse, Response
+from pydantic import BaseModel, Field
+
+ROOT = Path(__file__).resolve().parents[2]
+WORK = Path(os.environ.get('BLIND_EVAL_DIR') or ROOT / 'work/blind-eval')
+HERE = Path(__file__).parent
+JUDGES = ('pranay', 'gaurav', 'kavya')
+ENGINES = ('pranay', 'gaurav')
+CHOICES = ('A', 'B', 'tie', 'both-bad')
+
+app = FastAPI(title='Chameleon Blind Judge', version='1.0')
+_lock = threading.Lock()
+
+
+def load_pairs():
+    path = WORK / 'pairs.json'
+    if not path.is_file():
+        raise HTTPException(503, 'The study is not built yet. Run tools.blind_eval.build first.')
+    return json.loads(path.read_text())
+
+
+PAIRS: list[dict] = []
+BY_ID: dict[str, dict] = {}
+SAMPLES: dict[str, dict] = {}
+PLANNED: list[str] = []
+_loaded = {'mtime': None}
+
+
+def pairs():
+    """The published pairs, reloaded whenever the build publishes more of them."""
+    path = WORK / 'pairs.json'
+    mtime = path.stat().st_mtime if path.is_file() else None
+    if mtime != _loaded['mtime']:
+        fresh = load_pairs()
+        with _lock:
+            PAIRS[:] = fresh
+            BY_ID.clear()
+            BY_ID.update({p['id']: p for p in fresh})
+            SAMPLES.update({s['sample']: s for s in json.loads((WORK / 'samples.json').read_text())})
+            PLANNED[:] = [t['id'] for t in json.loads((WORK / 'tasks.json').read_text())]
+            _loaded['mtime'] = mtime
+    return PAIRS
+
+
+def db():
+    con = sqlite3.connect(WORK / 'votes.sqlite')
+    con.execute('''create table if not exists votes (judge text, pair text, choice text, winner text,
+                   note text, seconds real, at real, blind integer, primary key (judge, pair))''')
+    return con
+
+
+def shared_order():
+    """One shuffled order for the panel, so sizes and designs do not come in runs."""
+    pairs()
+    ids = list(PLANNED)  # shuffle the full plan, so pairs published later keep the order stable
+    random.Random(hashlib.sha256(b'order|panel').hexdigest()).shuffle(ids)
+    return [i for i in ids if i in BY_ID]
+
+
+def votes_by_pair(con, pair_id=None):
+    out = defaultdict(dict)
+    rows = con.execute('select pair, judge, choice from votes' + (' where pair=?' if pair_id else ''),
+                       (pair_id,) if pair_id else ())
+    for pid, judge, choice in rows:
+        out[pid][judge] = choice
+    return out
+
+
+def winner_of(pair, choice):
+    return pair[choice] if choice in ('A', 'B') else choice
+
+
+def check_judge(judge):
+    if judge not in JUDGES:
+        raise HTTPException(404, 'Unknown judge')
+
+
+@app.get('/')
+def index():
+    return FileResponse(HERE / 'index.html', headers={'Cache-Control': 'no-store'})
+
+
+@app.get('/api/study')
+def study():
+    with db() as con:
+        done = dict(con.execute('select judge, count(*) from votes group by judge').fetchall())
+    return {'judges': JUDGES, 'total': len(pairs()), 'planned': len(PLANNED), 'samples': len({p['sample'] for p in pairs()}),
+            'done': {j: done.get(j, 0) for j in JUDGES}}
+
+
+@app.get('/api/queue')
+def queue():
+    """The panel's order and every judge's votes so far."""
+    with db() as con:
+        votes = votes_by_pair(con)
+    return {'order': shared_order(), 'votes': votes, 'planned': len(PLANNED)}
+
+
+@app.get('/api/pair/{pair_id}')
+def pair(pair_id: str, reveal: bool = False):
+    pairs()
+    p = BY_ID.get(pair_id)
+    if p is None:
+        raise HTTPException(404, 'Pair not found')
+    s = SAMPLES[p['sample']]
+    with db() as con:
+        votes = votes_by_pair(con, pair_id)[pair_id]
+        note = con.execute("select note from votes where pair=? and note != '' order by at desc", (pair_id,)).fetchone()
+    out = {'id': pair_id, 'title': s['title'], 'source_size': [s['width'], s['height']],
+           'target': {'label': p['label'], **p['target_canvas']},
+           'sides': {side: {'ok': p['engines'][p[side]]['ok'], 'img': f'/img/{pair_id}/{side}'} for side in 'AB'},
+           'source_img': f"/img/{pair_id}/source", 'votes': votes, 'note': note[0] if note else ''}
+    if reveal:
+        for side in 'AB':
+            out['sides'][side]['engine'] = p[side]
+    return out
+
+
+@app.get('/img/{pair_id}/{which}')
+def image(pair_id: str, which: Literal['A', 'B', 'source']):
+    pairs()
+    p = BY_ID.get(pair_id)
+    if p is None:
+        raise HTTPException(404, 'Pair not found')
+    name = f"{p['sample']}__source.png" if which == 'source' else f"{pair_id}__{p[which]}.png"
+    path = WORK / 'img' / name
+    if not path.is_file():
+        raise HTTPException(404, 'No output')
+    # The file name contains the engine, so it is never sent: only the bytes are.
+    return Response(path.read_bytes(), media_type='image/png', headers={'Cache-Control': 'private, max-age=86400'})
+
+
+class Vote(BaseModel):
+    judge: str
+    pair: str
+    choice: Literal['A', 'B', 'tie', 'both-bad']
+    note: str = Field(default='', max_length=500)
+    seconds: float = Field(default=0, ge=0, le=86400)
+    blind: bool = True
+
+
+@app.post('/api/vote')
+def vote(v: Vote):
+    check_judge(v.judge)
+    pairs()
+    p = BY_ID.get(v.pair)
+    if p is None:
+        raise HTTPException(404, 'Pair not found')
+    with _lock, db() as con:
+        con.execute('insert or replace into votes values (?,?,?,?,?,?,?,?)',
+                    (v.judge, v.pair, v.choice, winner_of(p, v.choice), v.note.strip(), v.seconds, time.time(), int(v.blind)))
+    return {'ok': True}
+
+
+@app.delete('/api/vote/{judge}/{pair_id}')
+def unvote(judge: str, pair_id: str):
+    check_judge(judge)
+    with _lock, db() as con:
+        con.execute('delete from votes where judge=? and pair=?', (judge, pair_id))
+    return {'ok': True}
+
+
+def fleiss_kappa(rows, categories):
+    """Fleiss' kappa over items rated by the same number (>= 2) of raters."""
+    rows = [r for r in rows if len(r) >= 2]
+    if not rows or len({len(r) for r in rows}) != 1:
+        return None
+    n = len(rows[0])
+    counts = [Counter(r) for r in rows]
+    p_i = [(sum(c[k] ** 2 for k in categories) - n) / (n * (n - 1)) for c in counts]
+    p_j = [sum(c[k] for c in counts) / (len(rows) * n) for k in categories]
+    pe = sum(x * x for x in p_j)
+    return None if pe == 1 else round((sum(p_i) / len(rows) - pe) / (1 - pe), 3)
+
+
+def tally(votes):
+    c = Counter(votes)
+    decided = c['pranay'] + c['gaurav']
+    return {**{k: c[k] for k in (*ENGINES, 'tie', 'both-bad')}, 'n': len(votes),
+            'pranay_share': round(c['pranay'] / decided, 3) if decided else None}
+
+
+@app.get('/api/results')
+def results():
+    by_pair = defaultdict(dict)
+    with db() as con:
+        for judge, pair_id, winner in con.execute('select judge, pair, winner from votes'):
+            by_pair[pair_id][judge] = winner
+    pairs()
+    per_judge = {j: tally([v[j] for v in by_pair.values() if j in v]) for j in JUDGES}
+    majority, by_size, by_orient, rows = Counter(), defaultdict(list), defaultdict(list), []
+    for pair_id, v in by_pair.items():
+        p, s = BY_ID[pair_id], SAMPLES[BY_ID[pair_id]['sample']]
+        top, n = Counter(v.values()).most_common(1)[0]
+        verdict = top if n >= 2 else 'split' if len(v) == len(JUDGES) else 'pending'
+        if verdict != 'pending':
+            majority[verdict] += 1
+        ratio = s['width'] / s['height']
+        orient = 'square' if .95 <= ratio <= 1.05 else 'landscape' if ratio > 1 else 'portrait'
+        for w in v.values():
+            by_size[p['label']].append(w)
+            by_orient[orient].append(w)
+        rows.append({'pair': pair_id, 'title': s['title'], 'target': p['label'], 'A': p['A'], 'B': p['B'],
+                     **{j: v.get(j) for j in JUDGES}, 'verdict': verdict})
+    complete = [list(v.values()) for v in by_pair.values() if len(v) == len(JUDGES)]
+    failures = {e: sum(not p['engines'][e]['ok'] for p in PAIRS) for e in ENGINES}
+    seconds = {e: round(sorted(p['engines'][e]['seconds'] for p in PAIRS)[len(PAIRS) // 2], 2) for e in ENGINES}
+    return {'total_pairs': len(PAIRS), 'fully_judged': len(complete), 'overall': tally([w for v in by_pair.values() for w in v.values()]),
+            'per_judge': per_judge, 'majority': dict(majority),
+            'kappa': fleiss_kappa(complete, (*ENGINES, 'tie', 'both-bad')),
+            'by_size': {k: tally(v) for k, v in sorted(by_size.items())},
+            'by_orientation': {k: tally(v) for k, v in sorted(by_orient.items())},
+            'engine_failures': failures, 'median_seconds': seconds, 'rows': rows}
+
+
+@app.get('/api/export.csv')
+def export():
+    buf = io.StringIO()
+    w = csv.writer(buf)
+    w.writerow(['judge', 'pair', 'sample', 'target', 'left', 'right', 'choice', 'winner', 'note', 'seconds', 'at', 'blind'])
+    pairs()
+    with db() as con:
+        for judge, pair_id, choice, winner, note, secs, at, blind in con.execute('select * from votes order by at'):
+            p = BY_ID[pair_id]
+            w.writerow([judge, pair_id, p['sample'], p['label'], p['A'], p['B'], choice, winner, note, secs, at, blind])
+    return Response(buf.getvalue(), media_type='text/csv',
+                    headers={'Content-Disposition': 'attachment; filename="blind-votes.csv"'})

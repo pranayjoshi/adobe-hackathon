@@ -1,0 +1,306 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Blind Judge</title>
+<style>
+:root{--bg:#f4f4f2;--panel:#fff;--ink:#1d1d1b;--muted:#6b6b66;--line:#e2e1dc;--stage:#e9e8e3;--accent:#2f5bd3;--accent-ink:#fff;--a:#c2410c;--b:#0f766e;--good:#15803d;--chip:#efeee9}
+@media (prefers-color-scheme:dark){:root{--bg:#141413;--panel:#1d1d1b;--ink:#ededea;--muted:#9b9b95;--line:#2f2f2c;--stage:#262624;--accent:#7c9cf5;--accent-ink:#0d0d0c;--a:#fb923c;--b:#2dd4bf;--good:#4ade80;--chip:#2a2a27}}
+*{box-sizing:border-box}
+[hidden]{display:none!important}
+body{margin:0;background:var(--bg);color:var(--ink);font:14px/1.45 ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif}
+button{font:inherit;color:inherit;cursor:pointer}
+header{position:sticky;top:0;z-index:5;display:flex;align-items:center;gap:14px;padding:10px 20px;background:var(--panel);border-bottom:1px solid var(--line);flex-wrap:wrap}
+h1{font-size:15px;margin:0;font-weight:650;letter-spacing:.01em}
+.spacer{flex:1}
+.progress{display:flex;align-items:center;gap:8px;font-variant-numeric:tabular-nums;color:var(--muted);font-size:12.5px}
+.bar{width:160px;height:6px;border-radius:9px;background:var(--line);overflow:hidden}.bar i{display:block;height:100%;background:var(--accent)}
+.toggle{display:flex;align-items:center;gap:7px;font-size:12.5px;user-select:none}
+.switch{width:34px;height:20px;border-radius:99px;background:var(--line);position:relative;border:0;padding:0}
+.switch::after{content:"";position:absolute;top:2px;left:2px;width:16px;height:16px;border-radius:50%;background:var(--panel);transition:transform .15s}
+.switch[aria-checked=true]{background:var(--accent)}.switch[aria-checked=true]::after{transform:translateX(14px)}
+.tabs button{background:none;border:0;padding:6px 10px;border-radius:8px;color:var(--muted)}
+.tabs button[aria-selected=true]{background:var(--chip);color:var(--ink)}
+main{max-width:1500px;margin:0 auto;padding:16px 20px 230px}
+.meta{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap;margin-bottom:12px}
+.meta h2{font-size:16px;margin:0}.meta span{color:var(--muted);font-size:13px}
+.stage{display:grid;grid-template-columns:minmax(160px,240px) 1fr;gap:16px;align-items:start}
+.source{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:10px;position:sticky;top:64px}
+.source img{width:100%;display:block;border-radius:4px;cursor:zoom-in}
+.label{font-size:11.5px;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);margin-bottom:6px;display:flex;justify-content:space-between;gap:6px}
+.duel{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+.duel.stack{grid-template-columns:1fr}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:10px}
+.card .label b{font-size:13px;letter-spacing:0}
+.card[data-side=A] .label b{color:var(--a)}.card[data-side=B] .label b{color:var(--b)}
+.frame{background:var(--stage);border-radius:8px;display:flex;align-items:center;justify-content:center;height:calc(100vh - 330px);min-height:240px;padding:14px;overflow:hidden}
+.duel.stack .frame{height:calc((100vh - 400px) / 2);min-height:140px}
+.frame img{max-width:100%;max-height:100%;object-fit:contain;box-shadow:0 1px 3px rgba(0,0,0,.18);cursor:zoom-in}
+.frame .none{color:var(--muted);font-size:13px;text-align:center}
+.engine{font-size:12px;padding:1px 8px;border-radius:99px;background:var(--chip);color:var(--ink);text-transform:none;letter-spacing:0}
+.panel{position:fixed;bottom:0;left:0;right:0;background:var(--panel);border-top:1px solid var(--line);padding:10px 20px 12px;z-index:5}
+.panel .inner{max-width:1500px;margin:0 auto;display:grid;grid-template-columns:1fr minmax(220px,320px);gap:10px 20px;align-items:center}
+.judges{display:grid;gap:6px}
+.jrow{display:grid;grid-template-columns:84px repeat(4,minmax(0,1fr)) 22px;gap:8px;align-items:center}
+.jrow .who{font-weight:600}
+.jrow .ok{color:var(--good);font-weight:700;text-align:center}
+.v{border:1px solid var(--line);background:var(--panel);border-radius:9px;padding:8px 10px;font-weight:600;display:flex;gap:8px;align-items:center;justify-content:center;white-space:nowrap}
+.v kbd{font:11px ui-monospace,monospace;padding:1px 5px;border-radius:4px;background:var(--chip);color:var(--muted);font-weight:400}
+.v.A{color:var(--a)}.v.B{color:var(--b)}
+.v[aria-pressed=true]{background:var(--accent);color:var(--accent-ink);border-color:var(--accent)}
+.v[aria-pressed=true] kbd{background:rgba(255,255,255,.25);color:inherit}
+.side{display:grid;gap:8px}
+.note{width:100%;padding:9px 12px;border-radius:9px;border:1px solid var(--line);background:var(--bg);color:var(--ink);font:inherit}
+.navs{display:flex;gap:8px}
+.nav{border:1px solid var(--line);background:none;border-radius:9px;padding:8px 12px}
+.nav.grow{flex:1}
+.status{font-size:12.5px;color:var(--muted)}
+.toast{position:fixed;bottom:200px;left:50%;transform:translateX(-50%);background:var(--ink);color:var(--bg);padding:8px 14px;border-radius:8px;font-size:13px;opacity:0;transition:opacity .2s;pointer-events:none;z-index:9}
+.toast.on{opacity:1}
+.zoom{position:fixed;inset:0;background:rgba(0,0,0,.85);display:none;align-items:center;justify-content:center;z-index:20;cursor:zoom-out;padding:24px}
+.zoom.on{display:flex}.zoom img{max-width:100%;max-height:100%}
+.gate{max-width:520px;margin:10vh auto;background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:26px}
+.gate h2{margin:0 0 8px;font-size:18px}.gate p{color:var(--muted);margin:0 0 18px}
+.primary{background:var(--accent);color:var(--accent-ink);border:0;border-radius:10px;padding:10px 16px;font-weight:600}
+.cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px;margin-bottom:18px}
+.stat{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:14px}
+.stat .k{font-size:12px;color:var(--muted)}.stat .n{font-size:26px;font-weight:650;font-variant-numeric:tabular-nums}
+section.box{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:16px;margin-bottom:16px;overflow-x:auto}
+section.box h3{margin:0 0 12px;font-size:14px}
+table{border-collapse:collapse;width:100%;font-variant-numeric:tabular-nums}
+th,td{text-align:left;padding:7px 10px;border-bottom:1px solid var(--line);font-size:13px;white-space:nowrap}
+th{color:var(--muted);font-weight:500}
+.split{display:flex;height:10px;border-radius:9px;overflow:hidden;min-width:180px;background:var(--line)}
+.split i{display:block;height:100%}
+.legend{display:flex;gap:14px;font-size:12px;color:var(--muted);margin-bottom:10px;flex-wrap:wrap}
+.legend span::before{content:"";display:inline-block;width:10px;height:10px;border-radius:3px;margin-right:5px;vertical-align:-1px;background:var(--c)}
+a{color:var(--accent)}
+@media (max-width:900px){.stage{grid-template-columns:1fr}.source{position:static;max-width:240px}.duel{grid-template-columns:1fr}.frame{height:40vh}.bar{width:90px}
+  .panel{position:static}.panel .inner{grid-template-columns:1fr}main{padding-bottom:20px}.v kbd{display:none}.jrow{grid-template-columns:64px repeat(4,minmax(0,1fr)) 16px;gap:5px}.v{padding:8px 4px;font-size:12.5px}}
+</style>
+</head>
+<body>
+<header>
+  <h1>Blind Judge</h1>
+  <nav class="tabs" id="tabs"><button data-tab="judge" aria-selected="true">Judge</button><button data-tab="results">Results</button></nav>
+  <div class="spacer"></div>
+  <div class="progress" id="progress"><span id="progressText"></span><div class="bar"><i id="progressBar"></i></div></div>
+  <label class="toggle">Blind mode <button class="switch" id="blind" role="switch" aria-checked="true"></button></label>
+</header>
+<main id="main"></main>
+<div class="panel" id="panel">
+  <div class="inner">
+    <div class="judges" id="judges"></div>
+    <div class="side">
+      <input class="note" id="note" placeholder="Optional note: why? (saved with the next vote)" maxlength="500">
+      <div class="navs">
+        <button class="nav" id="prev" title="Previous (←)">←</button>
+        <button class="nav" id="next" title="Next (→)">→</button>
+        <button class="nav grow" id="nextOpen" title="Next pair still needing votes (N)">Next unfinished</button>
+      </div>
+      <div class="status" id="status"></div>
+    </div>
+  </div>
+</div>
+<div class="toast" id="toast"></div>
+<div class="zoom" id="zoom"><img alt=""></div>
+<script>
+const $ = s => document.querySelector(s);
+const store = {get(k){try{return localStorage.getItem(k)}catch{return null}}, set(k,v){try{localStorage.setItem(k,v)}catch{}}};
+const JUDGES = ['pranay', 'gaurav', 'kavya'];
+const NAMES = {pranay: 'Pranay', gaurav: 'Gaurav', kavya: 'Kavya'};
+const KEYS = {pranay: 'qwer', gaurav: 'asdf', kavya: 'zxcv'};  // one row of keys per judge
+const CHOICES = [['A', 'A better'], ['tie', 'Tie'], ['both-bad', 'Both bad'], ['B', 'B better']];
+const S = {blind: store.get('bj.blind') !== '0', order: [], votes: {}, i: 0, pair: null, shownAt: 0, tab: 'judge', planned: 0, advance: null};
+
+async function api(path, opts) {
+  const r = await fetch(path, opts);
+  if (!r.ok) throw new Error((await r.json().catch(() => ({}))).detail || r.statusText);
+  return r.json();
+}
+function toast(msg) { const t = $('#toast'); t.textContent = msg; t.classList.add('on'); clearTimeout(t._h); t._h = setTimeout(() => t.classList.remove('on'), 1400); }
+function el(tag, attrs = {}, ...kids) {
+  const e = document.createElement(tag);
+  for (const [k, v] of Object.entries(attrs)) k === 'class' ? e.className = v : k.startsWith('on') ? e.addEventListener(k.slice(2), v) : e.setAttribute(k, v);
+  for (const k of kids) e.append(k);
+  return e;
+}
+const complete = id => JUDGES.every(j => (S.votes[id] || {})[j]);
+
+// One row per judge: everyone votes on the same pair before moving on.
+for (const j of JUDGES) {
+  const row = el('div', {class: 'jrow', 'data-judge': j}, el('span', {class: 'who'}, NAMES[j]));
+  CHOICES.forEach(([c, label], k) => row.append(el('button', {class: 'v' + (c.length === 1 ? ' ' + c : ''), 'data-choice': c, onclick: () => vote(j, c)},
+    label, el('kbd', {}, KEYS[j][k].toUpperCase()))));
+  row.append(el('span', {class: 'ok'}));
+  $('#judges').append(row);
+}
+
+async function refreshQueue() {
+  const q = await api('/api/queue');
+  const id = S.order[S.i];
+  S.order = q.order; S.votes = q.votes; S.planned = q.planned;
+  S.i = Math.max(0, S.order.indexOf(id));
+}
+
+async function start() {
+  try { await refreshQueue(); } catch (e) { $('#main').replaceChildren(el('div', {class: 'gate'}, el('h2', {}, 'Study not ready'), el('p', {}, e.message))); return; }
+  setBlind(S.blind);
+  const firstOpen = S.order.findIndex(id => !complete(id));
+  S.i = firstOpen < 0 ? 0 : firstOpen;
+  showTab('judge');
+}
+
+function setBlind(on) { S.blind = on; store.set('bj.blind', on ? '1' : '0'); $('#blind').setAttribute('aria-checked', on); if (S.tab === 'judge' && S.pair) load(S.i); }
+
+function progress() {
+  const n = S.order.filter(complete).length;
+  $('#progressText').textContent = `${n} / ${S.order.length} judged by all three` + (S.order.length < S.planned ? ` · ${S.planned - S.order.length} still generating` : '');
+  $('#progressBar').style.width = `${100 * n / (S.order.length || 1)}%`;
+}
+
+function paintVotes() {
+  const v = S.votes[S.pair.id] || {};
+  for (const row of document.querySelectorAll('.jrow')) {
+    const mine = v[row.dataset.judge];
+    row.querySelectorAll('.v').forEach(b => b.setAttribute('aria-pressed', b.dataset.choice === mine));
+    row.querySelector('.ok').textContent = mine ? '✓' : '';
+  }
+  const waiting = JUDGES.filter(j => !v[j]).map(j => NAMES[j]);
+  $('#status').textContent = waiting.length ? `Waiting for ${waiting.join(', ')}` : 'All three voted. Moving on…';
+  progress();
+}
+
+async function load(i) {
+  clearTimeout(S.advance);
+  if (!S.order.length) { $('#main').replaceChildren(el('div', {class: 'gate'}, el('h2', {}, 'No pairs yet'), el('p', {}, 'The engines are still generating. This page will find them when you press Next unfinished.'))); return; }
+  S.i = (i + S.order.length) % S.order.length;
+  const id = S.order[S.i];
+  const p = await api(`/api/pair/${encodeURIComponent(id)}?reveal=${!S.blind}`);
+  S.pair = p; S.votes[id] = p.votes; S.shownAt = performance.now();
+  const stack = p.target.width / p.target.height >= 2.2;
+  const card = side => {
+    const s = p.sides[side];
+    const label = el('div', {class: 'label'}, el('b', {}, side === 'A' ? 'Option A' : 'Option B'));
+    if (s.engine) label.append(el('span', {class: 'engine'}, NAMES[s.engine]));
+    const frame = el('div', {class: 'frame'});
+    if (s.ok) frame.append(el('img', {src: s.img, alt: `Option ${side}`, onclick: e => zoom(e.target.src)}));
+    else frame.append(el('div', {class: 'none'}, 'This engine produced no output for this size.', el('br'), 'Treat it as the worse option.'));
+    return el('div', {class: 'card', 'data-side': side}, label, frame);
+  };
+  $('#main').replaceChildren(
+    el('div', {class: 'meta'}, el('h2', {}, `${p.target.label} · ${p.target.width}×${p.target.height}`),
+      el('span', {}, `from “${p.title}”, ${p.source_size[0]}×${p.source_size[1]} · pair ${S.i + 1} of ${S.order.length}`)),
+    el('div', {class: 'stage'},
+      el('div', {class: 'source'}, el('div', {class: 'label'}, el('span', {}, 'Original'), el('span', {}, `${p.source_size[0]}×${p.source_size[1]}`)),
+        el('img', {src: p.source_img, alt: 'Original design', onclick: e => zoom(e.target.src)})),
+      el('div', {class: 'duel' + (stack ? ' stack' : '')}, card('A'), card('B'))));
+  $('#note').value = p.note || '';
+  paintVotes();
+  preload(S.i + 1);
+}
+
+function preload(i) {
+  const id = S.order[(i + S.order.length) % S.order.length];
+  for (const w of ['A', 'B', 'source']) new Image().src = `/img/${encodeURIComponent(id)}/${w}`;
+}
+
+async function vote(judge, choice) {
+  if (!S.pair) return;
+  const id = S.pair.id, votes = S.votes[id] = S.votes[id] || {};
+  try {
+    if (votes[judge] === choice) {  // pressing the same choice again takes the vote back
+      await api(`/api/vote/${judge}/${encodeURIComponent(id)}`, {method: 'DELETE'});
+      delete votes[judge];
+    } else {
+      await api('/api/vote', {method: 'POST', headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({judge, pair: id, choice, note: $('#note').value, blind: S.blind,
+          seconds: Math.min((performance.now() - S.shownAt) / 1000, 86400)})});
+      votes[judge] = choice;
+    }
+  } catch (e) { toast('Not saved: ' + e.message); return; }
+  paintVotes();
+  clearTimeout(S.advance);
+  if (complete(id)) S.advance = setTimeout(() => { if (S.pair && S.pair.id === id && complete(id)) nextOpen(); }, 900);
+}
+
+async function nextOpen(refreshed = false) {
+  for (let k = 1; k <= S.order.length; k++) {
+    const j = (S.i + k) % S.order.length;
+    if (!complete(S.order[j])) return load(j);
+  }
+  if (!refreshed) { await refreshQueue(); return nextOpen(true); }  // more pairs may have been published
+  toast('Every published pair is judged. More appear as the engines finish.'); progress();
+}
+
+function zoom(src) { const z = $('#zoom'); z.querySelector('img').src = src; z.classList.add('on'); }
+$('#zoom').onclick = () => $('#zoom').classList.remove('on');
+
+function showTab(tab) {
+  S.tab = tab;
+  document.querySelectorAll('#tabs button').forEach(b => b.setAttribute('aria-selected', b.dataset.tab === tab));
+  $('#panel').hidden = $('#progress').hidden = tab !== 'judge';
+  if (tab === 'judge') load(S.i); else resultsGate();
+}
+
+function resultsGate() {
+  S.pair = null; clearTimeout(S.advance);
+  const left = S.order.filter(id => !complete(id)).length;
+  $('#main').replaceChildren(el('div', {class: 'gate'}, el('h2', {}, 'Results reveal the engine names'),
+    el('p', {}, left > 0 ? `${left} published pairs still need votes. Seeing who wins now can bias the rest of the panel's votes.` : 'Every published pair has all three votes.'),
+    el('button', {class: 'primary', onclick: results}, 'Show results'), ' ',
+    el('button', {class: 'nav', onclick: () => showTab('judge')}, 'Back to judging')));
+}
+
+const COLORS = {pranay: 'var(--a)', gaurav: 'var(--b)', tie: 'var(--muted)', 'both-bad': 'var(--line)'};
+function split(t) {
+  const bar = el('div', {class: 'split', title: `Pranay ${t.pranay} · Gaurav ${t.gaurav} · Tie ${t.tie} · Both bad ${t['both-bad']}`});
+  for (const k of ['pranay', 'tie', 'both-bad', 'gaurav']) if (t[k]) bar.append(el('i', {style: `width:${100 * t[k] / t.n}%;background:${COLORS[k]}`}));
+  return bar;
+}
+const pct = x => x == null ? '–' : `${Math.round(100 * x)}%`;
+function tallyTable(head, rows) {
+  const tb = el('tbody');
+  for (const [name, t] of rows) tb.append(el('tr', {}, el('td', {}, name), el('td', {}, String(t.n)), el('td', {}, String(t.pranay)), el('td', {}, String(t.gaurav)),
+    el('td', {}, String(t.tie)), el('td', {}, String(t['both-bad'])), el('td', {}, pct(t.pranay_share)), el('td', {}, split(t))));
+  return el('table', {}, el('thead', {}, el('tr', {}, ...[head, 'Votes', 'Pranay', 'Gaurav', 'Tie', 'Both bad', 'Pranay share*', ''].map(h => el('th', {}, h)))), tb);
+}
+
+async function results() {
+  const r = await api('/api/results');
+  const legend = el('div', {class: 'legend'}, ...[['Pranay', 'pranay'], ['Tie', 'tie'], ['Both bad', 'both-bad'], ['Gaurav', 'gaurav']].map(([n, k]) => el('span', {style: `--c:${COLORS[k]}`}, n)));
+  const stat = (k, n) => el('div', {class: 'stat'}, el('div', {class: 'k'}, k), el('div', {class: 'n'}, n));
+  const m = r.majority;
+  $('#main').replaceChildren(
+    el('div', {class: 'cards'},
+      stat('Pranay share of decided votes*', pct(r.overall.pranay_share)),
+      stat('Pairs judged by all three', `${r.fully_judged} / ${r.total_pairs}`),
+      stat('Majority wins · Pranay / Gaurav', `${m.pranay || 0} / ${m.gaurav || 0}`),
+      stat("Agreement (Fleiss' κ)", r.kappa == null ? '–' : String(r.kappa))),
+    el('section', {class: 'box'}, el('h3', {}, 'By judge'), legend, tallyTable('Judge', Object.entries(r.per_judge).map(([j, t]) => [NAMES[j], t]))),
+    el('section', {class: 'box'}, el('h3', {}, 'By target size'), tallyTable('Target', Object.entries(r.by_size))),
+    el('section', {class: 'box'}, el('h3', {}, 'By source orientation'), tallyTable('Source', Object.entries(r.by_orientation))),
+    el('section', {class: 'box'}, el('h3', {}, 'Engines'),
+      el('p', {}, `No-output cases: Pranay ${r.engine_failures.pranay}, Gaurav ${r.engine_failures.gaurav}. Median seconds per resize: Pranay ${r.median_seconds.pranay}, Gaurav ${r.median_seconds.gaurav}. Majority over judged pairs: tie ${m.tie || 0}, both bad ${m['both-bad'] || 0}, no majority ${m.split || 0}.`),
+      el('p', {style: 'color:var(--muted);margin:0'}, '* Pranay share = Pranay wins ÷ (Pranay wins + Gaurav wins); ties and both-bad are left out. ', el('a', {href: '/api/export.csv'}, 'Download every vote as CSV'))));
+}
+
+$('#blind').onclick = () => setBlind(!S.blind);
+document.querySelectorAll('#tabs button').forEach(b => b.onclick = () => showTab(b.dataset.tab));
+$('#prev').onclick = () => load(S.i - 1);
+$('#next').onclick = () => load(S.i + 1);
+$('#nextOpen').onclick = () => nextOpen();
+document.addEventListener('keydown', e => {
+  if (S.tab !== 'judge' || !S.pair || e.target.matches?.('input') || e.metaKey || e.ctrlKey || e.altKey) return;
+  const k = e.key.toLowerCase();
+  for (const j of JUDGES) { const c = KEYS[j].indexOf(k); if (c >= 0) return vote(j, CHOICES[c][0]); }
+  if (k === 'arrowleft') load(S.i - 1);
+  else if (k === 'arrowright') load(S.i + 1);
+  else if (k === 'n') nextOpen();
+  else if (k === 'escape') $('#zoom').classList.remove('on');
+});
+start();
+</script>
+</body>
+</html>
