@@ -2,6 +2,19 @@
   "version": "0.0.1",
   "configurations": [
     {
+      "name": "resize",
+      "runtimeExecutable": ".venv/bin/uvicorn",
+      "runtimeArgs": [
+        "lite.app:app",
+        "--host",
+        "127.0.0.1",
+        "--port",
+        "8770"
+      ],
+      "port": 8770,
+      "autoPort": false
+    },
+    {
       "name": "api",
       "runtimeExecutable": ".venv/bin/uvicorn",
       "runtimeArgs": [
