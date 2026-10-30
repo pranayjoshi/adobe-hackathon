@@ -30,19 +30,19 @@ export default function App() {
   const [useSolver,setUseSolver] = useState(true);
   const [useRefine,setUseRefine] = useState(true);
   const [useRetrieval,setUseRetrieval] = useState(true);
-  const [useRoles,setUseRoles] = useState(false);
-  const [useVlm,setUseVlm] = useState(false);
+  const [learnedLayouts,setLearnedLayouts] = useState(true);
   const [semanticLayout,setSemanticLayout] = useState(false);
-  const [learnedEdits,setLearnedEdits] = useState(false);
   const [analysisOverrides,setAnalysisOverrides] = useState<AnalysisOverrides>({roles:{},group_modes:{}});
   const [appliedIntent,setAppliedIntent] = useState(intentKey({roles:{},group_modes:{}}));
   const [samples, setSamples] = useState<Sample[]>([]);
   const [presets, setPresets] = useState<Preset[]>([]);
-  const [health, setHealth] = useState<{ renderer: boolean; text_metrics: boolean } | null>(null);
+  const [health, setHealth] = useState<{ renderer: boolean; text_metrics: boolean; learned_layouts?: boolean } | null>(null);
   const [sourceId, setSourceId] = useState<string | null>(null);
   const [sourceName, setSourceName] = useState("design");
   const [source, setSource] = useState<Design | null>(null);
   const [sourceRender, setSourceRender] = useState<string | null>(null);
+  const [sourceWarnings, setSourceWarnings] = useState<string[]>([]);
+  const [sourcePreviewVerified, setSourcePreviewVerified] = useState<boolean | null>(null);
   const [analysis, setAnalysis] = useState<Analysis | null>(null);
   const [targets, setTargets] = useState<Target[]>([]);
   const [emphasis, setEmphasis] = useState("balanced");
@@ -67,6 +67,8 @@ export default function App() {
     setSourceName(name);
     setResp(null);
     setSourceRender(null);
+    setSourceWarnings([]);
+    setSourcePreviewVerified(null);
     setAnalysis(null);
     setError(null);
     if (task) {
@@ -83,10 +85,11 @@ export default function App() {
     if(!source)return;
     const abort=new AbortController();
     const revision=sourceRequest.current;
-    setAnalysis(null);
+    setAnalysis(null);setSourceWarnings([]);setSourcePreviewVerified(null);
     api.analyze(source,semanticLayout?'hierarchical':'legacy',abort.signal).then(result=>{
       if(abort.signal.aborted||revision!==sourceRequest.current)return;
-      setAnalysis(result.analysis);setSourceRender(result.render);
+      setAnalysis(result.analysis);setSourceRender(result.render);setSourceWarnings(result.warnings??[]);
+      setSourcePreviewVerified(result.preview_verified??result.render!=null);
     }).catch(error=>{if(!abort.signal.aborted&&revision===sourceRequest.current)setError(String(error));});
     return()=>abort.abort();
   },[source,semanticLayout]);
@@ -107,7 +110,7 @@ export default function App() {
       .catch((e) => setError(`Engine service unreachable — start it with uvicorn. (${e.message})`));
   }, [loadSource]);
 
-  useEffect(()=>{generationRevision.current+=1;},[source,targets,emphasis,locks,controllerMode,solverMode,useSolver,useRefine,useRetrieval,useRoles,useVlm,semanticLayout,learnedEdits,allCandidates,analysisOverrides]);
+  useEffect(()=>{generationRevision.current+=1;},[source,targets,emphasis,locks,controllerMode,solverMode,useSolver,useRefine,useRetrieval,learnedLayouts,semanticLayout,allCandidates,analysisOverrides]);
   useEffect(()=>()=>{generationAbort.current?.abort();},[]);
 
   const generate = async () => {
@@ -121,10 +124,9 @@ export default function App() {
     try {
       const result=await api.generate(source,targets,emphasis,locks,allCandidates,
         {solver:useSolver,solver_mode:solverMode,controller_mode:controllerMode,
-         refine:useRefine,retrieval:useRetrieval,vlm:useVlm,roles:useRoles,learned_edit:learnedEdits&&controllerMode!=='legacy_batch',
+         refine:useRefine,retrieval:useRetrieval,learned_retarget:learnedLayouts&&health?.learned_layouts!==false,
          ...(semanticLayout?{group_policies:'hierarchical',proposal_portfolio:'diverse',retrieval_version:'fit_aware',
-             refinement_mode:'beam_lns',photo_mode:'subject_aware',background_mode:'safe_cover',
-             role_mode:useRoles?'calibrated':'shadow'}:{})},
+             refinement_mode:'beam_lns',photo_mode:'subject_aware',background_mode:'safe_cover',role_mode:'shadow'}:{})},
         (id,p,job)=>{currentJob.current=id;if(revision===generationRevision.current&&sourceRevision===sourceRequest.current){setJobId(id);setProgress(p);setStage(job.stage??job.state);if(job.active_preview)setActivePreview(job.active_preview);}},abort.signal,effectiveIntent);
       if(revision!==generationRevision.current||sourceRevision!==sourceRequest.current){
         if(sourceRevision===sourceRequest.current)setError('Inputs changed while generating. The completed run is saved in history.');
@@ -184,21 +186,24 @@ export default function App() {
         </div>
       </header>
 
-      {workspace ? <Workspace onLoad={(r,d,request)=>{++sourceRequest.current;generationAbort.current?.abort();if(currentJob.current)void api.cancel(currentJob.current).catch(()=>{});currentJob.current='';setBusy(false);setActivePreview(null);setOpen(null);setCrelloSource(null);setSource(d);setSourceId(null);setSourceName("Saved design");setAnalysis(r.analysis);setSourceRender(null);setLocks(request?.locks??{});setAnalysisOverrides(request?.analysis_overrides??{roles:{},group_modes:{}});setAppliedIntent(intentKey(request?.analysis_overrides??{roles:{},group_modes:{}}));setEmphasis(request?.emphasis??'balanced');setAllCandidates(request?.all_candidates??false);setTargets((request?.targets??r.results.map(result=>result.target)).map((target,index)=>({...target,id:target.id??`saved-${index}`,label:target.label??'Saved target'})));const options=request?.options??{};const mode=options.controller_mode??r.results[0]?.candidates[0]?.controller?.mode??'legacy_batch';if(['legacy_batch','single','single_restart','small_beam'].includes(String(mode)))setControllerMode(mode as ControllerMode);setSolverMode(options.solver_mode==='joint'?'joint':'legacy');setUseSolver(typeof options.solver==='boolean'?options.solver:true);setUseRefine(typeof options.refine==='boolean'?options.refine:true);setUseRetrieval(typeof options.retrieval==='boolean'?options.retrieval:true);setUseRoles(typeof options.roles==='boolean'?options.roles:false);setUseVlm(typeof options.vlm==='boolean'?options.vlm:false);setSemanticLayout(options.group_policies==='hierarchical');setLearnedEdits(options.learned_edit===true);setResp(r);setWorkspace(false);}}/> : <>
+      {workspace ? <Workspace onLoad={(r,d,request)=>{++sourceRequest.current;generationAbort.current?.abort();if(currentJob.current)void api.cancel(currentJob.current).catch(()=>{});currentJob.current='';setBusy(false);setActivePreview(null);setOpen(null);setCrelloSource(null);setSource(d);setSourceId(null);setSourceName("Saved design");setAnalysis(r.analysis);setSourceRender(null);setLocks(request?.locks??{});setAnalysisOverrides(request?.analysis_overrides??{roles:{},group_modes:{}});setAppliedIntent(intentKey(request?.analysis_overrides??{roles:{},group_modes:{}}));setEmphasis(request?.emphasis??'balanced');setAllCandidates(request?.all_candidates??false);setTargets((request?.targets??r.results.map(result=>result.target)).map((target,index)=>({...target,id:target.id??`saved-${index}`,label:target.label??'Saved target'})));const options=request?.options??{};const mode=options.controller_mode??r.results[0]?.candidates[0]?.controller?.mode??'legacy_batch';if(['legacy_batch','single','single_restart','small_beam'].includes(String(mode)))setControllerMode(mode as ControllerMode);setSolverMode(options.solver_mode==='joint'?'joint':'legacy');setUseSolver(typeof options.solver==='boolean'?options.solver:true);setUseRefine(typeof options.refine==='boolean'?options.refine:true);setUseRetrieval(typeof options.retrieval==='boolean'?options.retrieval:true);setLearnedLayouts(options.learned_retarget!==false);setSemanticLayout(options.group_policies==='hierarchical');setResp(r);setWorkspace(false);}}/> : <>
       <div className="border-b border-white/10 px-5 py-3 flex flex-wrap items-center gap-4 text-xs">
-        <label>Workflow <select aria-label="Design workflow" className="bg-zinc-900 p-2" value={controllerMode} onChange={e=>setControllerMode(e.target.value as ControllerMode)}><option value="legacy_batch">Compare generated layouts</option><option value="single">Improve one design</option><option value="single_restart">Improve with composition recovery</option><option value="small_beam">Explore a small shortlist</option></select></label>
-        <label>Solver <select aria-label="Geometry solver" className="bg-zinc-900 p-2" value={solverMode} onChange={e=>setSolverMode(e.target.value)}><option value="legacy">Placement</option><option value="joint">Joint text sizing and placement</option></select></label>
-        <label><input type="checkbox" checked={allCandidates} onChange={e=>setAllCandidates(e.target.checked)}/> Inspect all options</label>
-        <label><input type="checkbox" checked={useSolver} onChange={e=>setUseSolver(e.target.checked)}/> Optimize placement</label>
-        <label title="Evaluate-and-fix loop: improves the best three candidates against the design rubric"><input type="checkbox" checked={useRefine} onChange={e=>setUseRefine(e.target.checked)}/> Refine best 3</label>
-        <label><input type="checkbox" checked={useRetrieval} onChange={e=>setUseRetrieval(e.target.checked)}/> Saved arrangements</label>
-        <label><input type="checkbox" checked={useRoles} onChange={e=>setUseRoles(e.target.checked)}/> Learned role suggestions</label>
-        <label><input type="checkbox" checked={useVlm} onChange={e=>setUseVlm(e.target.checked)}/> Local model suggestions (requires weights)</label>
+        <label title={health?.learned_layouts===false?'Model weights not installed (engine/models/retarget.npz)':'Adds layouts from a model trained on how designers resized 1,400 Crello templates'}><input type="checkbox" disabled={health?.learned_layouts===false} checked={learnedLayouts&&health?.learned_layouts!==false} onChange={e=>setLearnedLayouts(e.target.checked)}/> Designer-trained layouts</label>
         <label title="Keep related copy, panels and illustrations together; use measured alternatives and subject-aware edits. Experimental."><input type="checkbox" checked={semanticLayout} onChange={e=>setSemanticLayout(e.target.checked)}/> Semantic layout (experimental)</label>
-        <label title="Available in the improve-design workflows, with a compatible local edit model."><input type="checkbox" disabled={controllerMode==='legacy_batch'} checked={learnedEdits} onChange={e=>setLearnedEdits(e.target.checked)}/> Model-guided edits (requires edit model)</label>
         <select aria-label="Element to keep fixed" className="bg-zinc-900 p-2" value={lockId} onChange={e=>setLockId(e.target.value)}><option value="">Keep an element fixed…</option>{source?.elements.map(e=><option key={e.id} value={e.id}>{e.content?.slice(0,30) || e.id}</option>)}</select>
         <button className="chip" disabled={!lockId} onClick={()=>{const e=(resp?.results[0]?.candidates[0]?.design ?? source)?.elements.find(e=>e.id===lockId);if(e)setLocks({...locks,[lockId]:{x:e.x,y:e.y,width:e.width,height:e.height}});}}>Lock current placement</button>
-        <button className="chip" onClick={()=>setLocks({})}>Clear {Object.keys(locks).length} locks</button>
+        {Object.keys(locks).length>0&&<button className="chip" onClick={()=>setLocks({})}>Clear {Object.keys(locks).length} {Object.keys(locks).length===1?'lock':'locks'}</button>}
+        <details className="relative">
+          <summary className="chip cursor-pointer select-none list-none">Advanced</summary>
+          <div className="absolute right-0 top-full z-20 mt-2 flex w-80 flex-col gap-3 rounded-lg border border-white/10 bg-zinc-950 p-4 shadow-xl">
+            <label className="flex flex-col gap-1">Workflow <select aria-label="Design workflow" className="bg-zinc-900 p-2" value={controllerMode} onChange={e=>setControllerMode(e.target.value as ControllerMode)}><option value="legacy_batch">Compare generated layouts</option><option value="single">Improve one design</option><option value="single_restart">Improve with composition recovery</option><option value="small_beam">Explore a small shortlist</option></select></label>
+            <label className="flex flex-col gap-1">Solver <select aria-label="Geometry solver" className="bg-zinc-900 p-2" value={solverMode} onChange={e=>setSolverMode(e.target.value)}><option value="legacy">Placement</option><option value="joint">Joint text sizing and placement</option></select></label>
+            <label><input type="checkbox" checked={allCandidates} onChange={e=>setAllCandidates(e.target.checked)}/> Inspect all options</label>
+            <label><input type="checkbox" checked={useSolver} onChange={e=>setUseSolver(e.target.checked)}/> Optimize placement</label>
+            <label title="Evaluate-and-fix loop: improves the best three candidates against the design rubric"><input type="checkbox" checked={useRefine} onChange={e=>setUseRefine(e.target.checked)}/> Refine best 3</label>
+            <label><input type="checkbox" checked={useRetrieval} onChange={e=>setUseRetrieval(e.target.checked)}/> Saved arrangements</label>
+          </div>
+        </details>
         {busy && <span role="status">{stage.replaceAll('_',' ')} · {Math.round(progress*100)}% of sizes completed {jobId && <button className="chip" onClick={()=>api.cancel(jobId).catch(e=>setError(String(e)))}>Cancel generation</button>}</span>}
       </div>
       <div className="flex min-h-0 flex-1 flex-col lg:flex-row">
@@ -212,6 +217,8 @@ export default function App() {
             sourceId={sourceId}
             source={source}
             sourceRender={sourceRender}
+            sourceWarnings={sourceWarnings}
+            sourcePreviewVerified={sourcePreviewVerified}
             analysis={analysis}
             analysisOverrides={analysisOverrides}
             onAnalysisOverrides={setAnalysisOverrides}
@@ -279,6 +286,7 @@ export default function App() {
                         <Preview key={r.baseline.render ?? ""} src={r.baseline.render} width={width} height={height} maxHeight={wide ? 90 : 160} className="w-full" />
                       </div>
                     )}
+                    {r.status==='unverified_missing_asset'&&<p role="status" className="mb-3 text-xs leading-relaxed text-amber-300">These layouts are visible, but they are not verified. A required original image is missing, so the renderer drew a placeholder.</p>}
                     {r.candidates[0]?.controller ? <ActiveDesign key={`${resp.run_id}-${ti}`} candidate={r.candidates[0]} runId={resp.run_id} targetIndex={ti} locked={Object.keys(locks)} onCandidate={candidate=>updateCandidate(ti,candidate,resp.run_id)} onLock={element=>setLocks({...locks,[element.id]:{x:element.x,y:element.y,width:element.width,height:element.height}})}/> : <div className={`grid gap-4 ${wide ? "grid-cols-1" : "grid-cols-1 md:grid-cols-2 2xl:grid-cols-3"}`}>
                       {r.candidates.map((c, ci) => (
                         <CandidateCard
