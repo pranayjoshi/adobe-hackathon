@@ -157,6 +157,21 @@ class DurableProductTests(unittest.TestCase):
         sample=json.loads(next((ROOT/'input').glob('*level2*.json')).read_text())
         _check_source(sample['source'])
 
+    def test_missing_original_image_stays_visible_and_unverified(self):
+        warning="Missing asset 'badge.png' for element 'mark' - rendered a placeholder."
+        def no_artifact(*args,**kwargs):
+            kwargs['artifact_callback']=None
+            return fake_generate(*args,**kwargs)
+        with patch('service.app._render',return_value=(None,['Missing or unsafe image asset: badge.png'])),patch('service.app._unverified_source_preview',return_value=('/renders/unverified-test.png',[warning])),patch('service.app.generate',side_effect=no_artifact):
+            result=self.client.post('/api/generate',json=self.body)
+        self.assertEqual(result.status_code,200,result.text)
+        data=result.json();row=data['results'][0];candidate=row['candidates'][0]
+        self.assertEqual(row['status'],'unverified_missing_asset')
+        self.assertEqual(candidate['render'],'/renders/unverified-test.png')
+        self.assertFalse(candidate['preview_verified']);self.assertFalse(candidate['exportable'])
+        self.assertFalse(candidate['verification']['verified'])
+        self.assertIsNone(repository().active_hash(data['run_id'],0))
+
     def test_retired_worker_cannot_mutate_revisions_events_or_parent_run(self):
         repo=repository();rid,_=repo.create_job('fencedworker',self.body)
         self.assertTrue(repo.claim(rid,'old-attempt'))
