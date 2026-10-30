@@ -25,18 +25,23 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT))
 from lite.app import PRESETS, SAME_SHAPE  # noqa: E402  the 14 sizes the apps offer
-from tools.blind_eval.versions import code_fingerprint  # noqa: E402
+from tools.blind_eval.versions import code_fingerprint, git_version  # noqa: E402
 
 WORK = ROOT / 'work/blind-eval'
 ENGINES = ('pranay', 'gaurav', 'merged')   # run by worker.py, compared by the judges
 SEED = 'chameleon-blind-v1'
 
 
+VERSIONS = {}   # engine -> the version every run must come from (set in main)
+
+
 def current(name, path):
-    """A run is current when it exists and, for the merged engine, came from today's code."""
+    """A run is current when it exists and, for a versioned engine (merged, Gaurav's), came
+    from today's code."""
     if not path.exists():
         return False
-    return name != 'merged' or json.loads(path.read_text()).get('code') == code_fingerprint()
+    want = code_fingerprint() if name == 'merged' else VERSIONS.get(name)
+    return want is None or json.loads(path.read_text()).get('code') == want
 
 
 def digest(*parts):
@@ -282,6 +287,7 @@ if __name__ == '__main__':
     ap.add_argument('--publish', action='store_true',
                     help='only render and publish the tasks every engine has finished (while runs continue)')
     a = ap.parse_args()
+    VERSIONS['gaurav'] = git_version(a.gaurav.resolve())
     tasks = select(a.count)
     if a.publish:
         tasks = [t for t in tasks if all(current(n, WORK / 'runs' / n / f"{t['id']}.json") for n in ENGINES)]

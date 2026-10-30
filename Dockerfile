@@ -26,9 +26,13 @@ COPY chameleon_design_schema_v0.9.json .
 COPY brand_kit/ ./brand_kit/
 COPY renderer/ ./renderer/
 COPY engine/ ./engine/
+# The final engine: merged/ extends engine/ at run time, vendor/gaurav is a second candidate source.
+COPY merged/ ./merged/
+COPY vendor/ ./vendor/
+COPY final/ ./final/
 
 # input/ and output/ are mounted as volumes at run time (see README) —
 # not baked into the image.
 RUN mkdir -p /app/input /app/output
 
-ENTRYPOINT ["python", "-m", "engine.main"]
+ENTRYPOINT ["python", "-m", "final.main"]

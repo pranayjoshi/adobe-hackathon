@@ -34,7 +34,7 @@ ROOT = Path(__file__).resolve().parents[2]
 WORK = Path(os.environ.get('BLIND_EVAL_DIR') or ROOT / 'work/blind-eval')
 HERE = Path(__file__).parent
 JUDGES = ('pranay', 'gaurav', 'kavya')
-ENGINES = ('pranay', 'gaurav', 'merged')
+ENGINES = tuple(os.environ.get('BLIND_EVAL_ENGINES', 'pranay,gaurav,merged').split(','))   # three, in results order
 OPTIONS = ('A', 'B', 'C')
 CHOICES = (*OPTIONS, 'none', 'all-bad')
 
@@ -262,6 +262,11 @@ def verdict_of(winners):
         return 'pending'
     top, n = Counter(winners).most_common(1)[0]
     return top if n >= 2 and top in ('none', 'all-bad') else 'split'
+
+
+@app.get('/api/engines')
+def engines():
+    return list(ENGINES)
 
 
 @app.get('/api/results')

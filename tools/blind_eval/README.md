@@ -6,7 +6,7 @@ Three people (Pranay, Gaurav, Kavya) compare three resize engines without knowin
 
 - **200 designs** from the Crello validation split (CDLA-Permissive-2.0), with their original fonts and image layers. Imported to `work/blind-eval/crello` and sampled by a seeded hash, so the set is stable.
 - **5 target sizes per design, chosen from the 14 app presets** (`lite/app.py`). The picker is greedy farthest-point in (log aspect ratio, log area) space. It starts from the source's own shape, so each design gets the 5 sizes that differ most from the original and from each other. Sizes with the source's aspect ratio are skipped (a plain scale is not a design decision). A coverage penalty keeps the two most extreme ad sizes from taking every slot, so all 14 appear: 33 to 152 uses each.
-- **1,000 tasks, three options each.** Each engine runs in its own interpreter: ours is a snapshot of `HEAD` in `work/blind-eval/engines/pranay`, and Gaurav's is his `main` at `ed11607`. Both use the same renderer and the same brand kit (fonts and assets), so neither one loses points to a missing font. Every output is rendered by the same renderer.
+- **1,000 tasks, three options each.** Each engine runs in its own interpreter: ours is a snapshot of `HEAD` in `work/blind-eval/engines/pranay`, and Gaurav's is his `main` checkout (`4d76410`, v12, since round 2). Gaurav's runs record his commit, so pulling his repository makes them stale and they are redone. Both use the same renderer and the same brand kit (fonts and assets), so neither one loses points to a missing font. Every output is rendered by the same renderer.
 - **The merged engine** runs on the same snapshot of our engine with `merged/` added (see `merged/README.md`).
 - When an engine refuses a size (ours raises `NoValidDesign` rather than emit a layout that fails its guardrails), the judges see "no output" in that slot.
 
@@ -17,6 +17,15 @@ The A/B/C order is shuffled for each task by a seeded draw. The tasks come in on
 - Each render is stamped with the fingerprint of the layout it was drawn from, and is redrawn whenever that layout changes.
 - Votes are stored by the engines they credit, so a rebuilt study never moves a past vote to another picture.
 - The build ends with `verify`, which checks every option against its engine's run file (layout, picture, canvas and element ids) and re-renders a sample to confirm the pictures. It exits with an error on any mismatch.
+
+## Rounds
+
+- **Round 1** (Gaurav v10 at `ed11607`, merged without the judges' model): 600 votes on the core 200. Archived with its runs in `work/blind-eval/archive/study-v3-gaurav-v10`, and used to fit `merged/prefs_weights.json`:
+
+  ```bash
+  .venv/bin/python -m tools.blind_eval.fit_prefs work/blind-eval/archive/study-v3-gaurav-v10
+  ```
+- **Round 2** (Gaurav v12, merged choosing with the judges' model): a fresh vote database. Its core set is chosen again for the new merged version. The model was fitted on the same 200 designs, so a round on unseen designs is the clean test.
 
 ## Build
 

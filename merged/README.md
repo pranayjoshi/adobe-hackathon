@@ -1,6 +1,6 @@
 # Merged engine
 
-Our engine with the strengths of Gaurav's built into it. It lives apart from `engine/` and edits nothing there.
+Our engine with the strengths of Gaurav's built into it, choosing its final layout the way the blind judges did. It lives apart from `engine/` and edits nothing there.
 
 ```python
 from merged.resize import resize            # resize(source, target_canvas) -> design
@@ -37,6 +37,13 @@ The root cause, found by inspecting the ranked candidates: the uniform "Original
    - They win ties against the pipeline's own layouts.
    - Real problems still count in full: collisions, overflow, lost contrast, unreadable or overlapping text, and wasted canvas.
    - The leeway only applies when the floor plan's headline is at least 85% as big as the headline of the best other layout, so a plan wins by being bolder, never smaller.
+
+8. **The final choice follows the judges** (`prefs.py`, `MERGED_PREFS=0` turns this off).
+   - The first blind round (200 core tasks, 3 judges, κ = 0.73) picked Gaurav's engine 46% of the time, merged 38% and ours 25%. Gaurav's biggest lead was in wide strips (leaderboards 72%).
+   - `tools/blind_eval/fit_prefs.py` fits a pairwise logistic model on those votes. Its features are measured from the finished layout: smallest text, headline size (against the canvas and against the source), letterboxing, empty canvas, distortion, text overlap and clipping, plus our own checks' defect counts. Held out by design, it predicts which of two layouts the judges picked 66% of the time.
+   - What it learned: **text size and headline size decide the vote, then letterboxing. Our defect counts barely matter** (collisions even get a slightly positive weight, because bold layouts have more of them). Ranking by defect count first is what kept choosing small, safe layouts.
+   - So a shortlist is scored by the model: the ranking's top 4, the best floor plan, and **Gaurav's own layout** (`gaurav_bridge.py`, which runs his engine in a helper process because both engines are a package called `engine`). Any image his engine distorted is first fitted back to its proportions inside its slot (position and size only).
+   - Hard rules still veto: no distorted image, no text off the canvas. The fitted weights are in `prefs_weights.json` and are part of the study's merged fingerprint, as is Gaurav's commit.
 
 **Guards on floor plans:**
 - A plan is dropped if it would push any text below 8 px (2% of the short side on big canvases), or below its source size when that was smaller.

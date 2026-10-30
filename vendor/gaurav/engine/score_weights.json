@@ -1,0 +1,287 @@
+{
+ "weights": {
+  "read.size": 10.5769,
+  "read.lines": 5.7692,
+  "read.contrast": 7.6923,
+  "read.presence": 5.7692,
+  "layout.balance": 5.6716,
+  "layout.alignment": 5.1345,
+  "layout.spacing": 3.9446,
+  "layout.fill": 2.3401,
+  "layout.margins": 1.0,
+  "layout.size": 6.511,
+  "layout.cohesion": 2.8158,
+  "faith.order": 17.6554,
+  "faith.anchors": 7.4693,
+  "faith.hierarchy": 8.0704,
+  "faith.scale": 4.3754,
+  "faith.rows": 5.2041
+ },
+ "temperature": 0.172677,
+ "meta": {
+  "generated": "2026-10-25T01:32:36",
+  "kind": "judge-v8",
+  "dump": "../docs/designer/compare/v8_picker_hand/candidates.jsonl",
+  "n_pairs": 31424,
+  "n_holdout_pairs": 5705,
+  "margin": 0.05,
+  "floor": 0.01,
+  "l2": 2.0,
+  "min_pairs": 5,
+  "frozen": [
+   "read.size",
+   "read.lines",
+   "read.contrast",
+   "read.presence"
+  ],
+  "freeze": [
+   "read.size",
+   "read.lines",
+   "read.contrast",
+   "read.presence"
+  ],
+  "pair_agreement_hand": {
+   "n": 31407,
+   "agree": 0.6811,
+   "agree_weighted": 0.6572
+  },
+  "pair_agreement_fitted": {
+   "n": 31407,
+   "agree": 0.7189,
+   "agree_weighted": 0.7011
+  },
+  "pair_agreement_lodo": {
+   "n": 31407,
+   "agree": 0.6943,
+   "folds": 25
+  },
+  "rerank": {
+   "tuning hand": {
+    "n": 600,
+    "agreement": 0.5978,
+    "gap_to_best": 0.0987,
+    "gap_to_best_clean": 0.0651,
+    "winner_is_best": 104,
+    "ge_0.7": 185,
+    "hard": 1,
+    "fallback": 0,
+    "order_tau": 0.6754,
+    "pos_err": 0.1433,
+    "judge_total": 89.12,
+    "families": {
+     "anchor": 65,
+     "anchor+opt": 98,
+     "structure": 63,
+     "structure+opt": 86,
+     "template": 92,
+     "template+opt": 196
+    }
+   },
+   "tuning hand (re-ranked)": {
+    "n": 600,
+    "agreement": 0.5978,
+    "gap_to_best": 0.0987,
+    "gap_to_best_clean": 0.0651,
+    "winner_is_best": 104,
+    "ge_0.7": 185,
+    "hard": 1,
+    "fallback": 0,
+    "order_tau": 0.6754,
+    "pos_err": 0.1433,
+    "judge_total": 89.12,
+    "families": {
+     "anchor": 65,
+     "anchor+opt": 98,
+     "structure": 63,
+     "structure+opt": 86,
+     "template": 92,
+     "template+opt": 196
+    }
+   },
+   "tuning fitted": {
+    "n": 600,
+    "agreement": 0.6071,
+    "gap_to_best": 0.0894,
+    "gap_to_best_clean": 0.0558,
+    "winner_is_best": 111,
+    "ge_0.7": 194,
+    "hard": 1,
+    "fallback": 0,
+    "order_tau": 0.7037,
+    "pos_err": 0.1396,
+    "judge_total": 88.94,
+    "families": {
+     "anchor": 76,
+     "anchor+opt": 98,
+     "structure": 103,
+     "structure+opt": 80,
+     "template": 59,
+     "template+opt": 184
+    }
+   },
+   "HOLD-OUT hand": {
+    "n": 120,
+    "agreement": 0.6027,
+    "gap_to_best": 0.1147,
+    "gap_to_best_clean": 0.0494,
+    "winner_is_best": 25,
+    "ge_0.7": 35,
+    "hard": 1,
+    "fallback": 0,
+    "order_tau": 0.7158,
+    "pos_err": 0.1465,
+    "judge_total": 81.16,
+    "families": {
+     "anchor": 19,
+     "anchor+opt": 16,
+     "structure": 7,
+     "structure+opt": 31,
+     "template": 17,
+     "template+opt": 30
+    }
+   },
+   "HOLD-OUT fitted": {
+    "n": 120,
+    "agreement": 0.6099,
+    "gap_to_best": 0.1074,
+    "gap_to_best_clean": 0.0421,
+    "winner_is_best": 22,
+    "ge_0.7": 36,
+    "hard": 1,
+    "fallback": 0,
+    "order_tau": 0.7318,
+    "pos_err": 0.1425,
+    "judge_total": 81.02,
+    "families": {
+     "anchor": 19,
+     "anchor+opt": 17,
+     "structure": 10,
+     "structure+opt": 30,
+     "template": 14,
+     "template+opt": 30
+    }
+   },
+   "tuning fitted (leave-one-design-out)": {
+    "n": 600,
+    "agreement": 0.6061,
+    "gap_to_best": 0.0904,
+    "gap_to_best_clean": 0.0569,
+    "winner_is_best": 112,
+    "ge_0.7": 192,
+    "hard": 1,
+    "fallback": 0,
+    "order_tau": 0.7017,
+    "pos_err": 0.1406,
+    "judge_total": 88.92,
+    "families": {
+     "anchor": 76,
+     "anchor+opt": 98,
+     "structure": 105,
+     "structure+opt": 77,
+     "template": 62,
+     "template+opt": 182
+    }
+   }
+  },
+  "components": {
+   "read.size": {
+    "n": 23625,
+    "agree": 0.5841,
+    "differs_share": 0.7522
+   },
+   "read.lines": {
+    "n": 2148,
+    "agree": 0.5126,
+    "differs_share": 0.0684
+   },
+   "read.contrast": {
+    "n": 7162,
+    "agree": 0.4954,
+    "differs_share": 0.228
+   },
+   "read.presence": {
+    "n": 15892,
+    "agree": 0.6098,
+    "differs_share": 0.506
+   },
+   "layout.balance": {
+    "n": 31382,
+    "agree": 0.5352,
+    "differs_share": 0.9992
+   },
+   "layout.alignment": {
+    "n": 27254,
+    "agree": 0.4401,
+    "differs_share": 0.8678
+   },
+   "layout.spacing": {
+    "n": 23652,
+    "agree": 0.4876,
+    "differs_share": 0.7531
+   },
+   "layout.fill": {
+    "n": 20450,
+    "agree": 0.5346,
+    "differs_share": 0.6511
+   },
+   "layout.margins": {
+    "n": 9454,
+    "agree": 0.3759,
+    "differs_share": 0.301
+   },
+   "layout.size": {
+    "n": 28207,
+    "agree": 0.5871,
+    "differs_share": 0.8981
+   },
+   "layout.cohesion": {
+    "n": 18490,
+    "agree": 0.5078,
+    "differs_share": 0.5887
+   },
+   "faith.order": {
+    "n": 24531,
+    "agree": 0.7287,
+    "differs_share": 0.7811
+   },
+   "faith.anchors": {
+    "n": 28034,
+    "agree": 0.62,
+    "differs_share": 0.8926
+   },
+   "faith.hierarchy": {
+    "n": 6993,
+    "agree": 0.5187,
+    "differs_share": 0.2227
+   },
+   "faith.scale": {
+    "n": 30528,
+    "agree": 0.601,
+    "differs_share": 0.972
+   },
+   "faith.rows": {
+    "n": 893,
+    "agree": 0.542,
+    "differs_share": 0.0284
+   }
+  },
+  "hand_weights": {
+   "read.size": 11.0,
+   "read.lines": 6.0,
+   "read.contrast": 8.0,
+   "read.presence": 6.0,
+   "layout.balance": 6.0,
+   "layout.alignment": 7.0,
+   "layout.spacing": 5.0,
+   "layout.fill": 6.0,
+   "layout.margins": 4.0,
+   "layout.size": 8.0,
+   "layout.cohesion": 4.0,
+   "faith.order": 12.0,
+   "faith.anchors": 6.0,
+   "faith.hierarchy": 8.0,
+   "faith.scale": 3.0,
+   "faith.rows": 4.0
+  }
+ }
+}

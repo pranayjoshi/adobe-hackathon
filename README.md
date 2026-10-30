@@ -2,6 +2,8 @@
 
 Retargets structured designs while preserving every element, text string, font family, original asset reference, and non-layout property. The pipeline searches arrangements and scales, fits measured typography, repairs groups, optimizes placement with CP-SAT, retrieves training geometry, checks composited/rendered contrast, and returns ranked editable JSON candidates.
 
+**Submission entry point:** `python -m final.main` (the Docker image), which combines every approach in this repository. See [final/README.md](final/README.md).
+
 ## Run locally
 
 ```sh

@@ -113,7 +113,7 @@ const $ = s => document.querySelector(s);
 const store = {get(k){try{return localStorage.getItem(k)}catch{return null}}, set(k,v){try{localStorage.setItem(k,v)}catch{}}};
 const JUDGES = ['pranay', 'gaurav', 'kavya'];
 const NAMES = {pranay: 'Pranay', gaurav: 'Gaurav', kavya: 'Kavya'};  // the judges
-const ENGINE_NAMES = {pranay: "Pranay's engine", gaurav: "Gaurav's engine", merged: 'Merged engine'};
+const ENGINE_NAMES = {pranay: "Pranay's engine", gaurav: "Gaurav's engine", merged: 'Merged engine', final: 'Final engine'};
 const KEYS = {pranay: 'qwert', gaurav: 'asdfg', kavya: 'zxcvb'};  // one row of keys per judge
 const CHOICES = [['A', 'A best'], ['B', 'B best'], ['C', 'C best'], ['none', 'No clear winner'], ['all-bad', 'All bad']];
 const S = {blind: true, order: [], core: [], votes: {}, i: 0, pair: null, shownAt: 0, tab: 'judge', planned: 0, advance: null};
@@ -271,9 +271,10 @@ function resultsGate() {
     el('button', {class: 'nav', onclick: () => showTab('judge')}, 'Back to judging')));
 }
 
-const ENGINES = ['pranay', 'gaurav', 'merged'];
+let ENGINES = ['pranay', 'gaurav', 'merged'];
+fetch('/api/engines').then(r => r.json()).then(e => { ENGINES = e; });
 const LABEL = {...ENGINE_NAMES, none: 'No clear winner', 'all-bad': 'All bad'};
-const COLORS = {pranay: 'var(--a)', gaurav: 'var(--b)', merged: 'var(--c)', none: 'var(--muted)', 'all-bad': 'var(--line)'};
+const COLORS = {pranay: 'var(--a)', gaurav: 'var(--b)', merged: 'var(--c)', final: 'var(--a)', none: 'var(--muted)', 'all-bad': 'var(--line)'};
 function split(t) {
   // A shared picture credits several engines, so the bar is scaled to the sum of its parts.
   const keys = [...ENGINES, 'none', 'all-bad'], total = keys.reduce((a, k) => a + t[k], 0) || 1;
@@ -300,9 +301,9 @@ async function results(scope = S.core.length ? 'core' : 'all') {
   const m = r.majority;
   $('#main').replaceChildren(scopes,
     el('div', {class: 'cards'},
-      stat("Picked as best* · Pranay's / Gaurav's / Merged", ENGINES.map(e => pct(r.overall[e + '_share'])).join(' / ')),
+      stat(`Picked as best* · ${ENGINES.map(e => LABEL[e]).join(' / ')}`, ENGINES.map(e => pct(r.overall[e + '_share'])).join(' / ')),
       stat('Tasks judged by all three', `${r.fully_judged} / ${r.total_pairs}`),
-      stat("Majority wins · Pranay's / Gaurav's / Merged", ENGINES.map(e => Object.entries(m).filter(([k]) => k.split(',').includes(e)).reduce((a, [, n]) => a + n, 0)).join(' / ')),
+      stat(`Majority wins · ${ENGINES.map(e => LABEL[e]).join(' / ')}`, ENGINES.map(e => Object.entries(m).filter(([k]) => k.split(',').includes(e)).reduce((a, [, n]) => a + n, 0)).join(' / ')),
       stat("Agreement (Fleiss' κ)", r.kappa == null ? '–' : String(r.kappa))),
     el('section', {class: 'box'}, el('h3', {}, 'By judge'), legend, tallyTable('Judge', Object.entries(r.per_judge).map(([j, t]) => [NAMES[j], t]))),
     el('section', {class: 'box'}, el('h3', {}, 'By target size'), tallyTable('Target', Object.entries(r.by_size))),

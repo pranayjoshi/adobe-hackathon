@@ -36,10 +36,21 @@ if name == 'merged':
     from merged.resize import resize  # noqa: E402
     from tools.blind_eval.versions import code_fingerprint  # noqa: E402
     code = code_fingerprint()
+elif name in ('final', 'final_solo'):
+    # final_solo: the final engine without Gaurav's layouts.
+    import os  # noqa: E402
+    if name == 'final_solo':
+        os.environ['FINAL_GAURAV'] = '0'
+    sys.path.append(str(Path(__file__).resolve().parents[2]))
+    from final.resize import resize  # noqa: E402
 else:
     from engine.resize import resize  # noqa: E402
 
 if name == 'gaurav':
+    repo = Path(__file__).resolve().parents[2]
+    sys.path.append(str(repo))
+    from tools.blind_eval.versions import git_version  # noqa: E402
+    code = git_version(engine_root)
     # Point the competitor's measuring and judging at the shared fonts and assets.
     import engine.backdrop, engine.contrast, engine.render, engine.textfit  # noqa: E401,E402
     engine.textfit.FONTS_DIR = engine.render.FONTS_DIR = brand_kit / 'fonts'

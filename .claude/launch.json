@@ -77,6 +77,22 @@
       ],
       "port": 8790,
       "autoPort": false
+    },
+    {
+      "name": "final-judge",
+      "runtimeExecutable": ".venv/bin/uvicorn",
+      "runtimeArgs": [
+        "tools.blind_eval.app:app",
+        "--host",
+        "0.0.0.0",
+        "--port",
+        "8791"
+      ],
+      "port": 8791,
+      "env": {
+        "BLIND_EVAL_DIR": "work/final-eval",
+        "BLIND_EVAL_ENGINES": "final,gaurav,merged"
+      }
     }
   ]
 }

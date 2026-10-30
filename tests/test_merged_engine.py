@@ -122,6 +122,26 @@ class MergedEngineTest(unittest.TestCase):
         collided = candidate('floorplan_split', collisions=[{'ids': ['t']}])
         self.assertLess(rank_key(source, collided), rank_key(source, clean))   # a collision is not
 
+    def test_distorted_images_are_restored_to_their_proportions(self):
+        from merged.resize import unstretch
+        source = {'canvas': {'width': 100, 'height': 100}, 'elements': [image('p', 0, 0, 40, 20, 1)]}
+        design = {'canvas': {'width': 300, 'height': 100}, 'elements': [image('p', 10, 10, 120, 20, 1)]}
+        e = unstretch(source, design)['elements'][0]
+        self.assertAlmostEqual(e['width'] / e['height'], 2.0)
+        self.assertEqual((e['x'] + e['width'] / 2, e['y'] + e['height'] / 2), (70, 20))   # centred in its slot
+        self.assertLessEqual(e['width'], 120)
+
+    def test_the_judges_model_prefers_bigger_text_and_no_letterbox(self):
+        from merged.prefs import score
+        report = {'quality': {'defect_count': 0, 'defects': {}}, 'rubric': {}, 'valid': True}
+        source = poster()
+        big = {'canvas': {'width': 1000, 'height': 1000}, 'elements': [
+            {**e, 'x': e['x'] * 0.66, 'y': e['y'] * 0.66, 'width': e['width'] * 0.66, 'height': e['height'] * 0.66,
+             **({'font_size': e['font_size'] * 0.9} if e['type'] == 'text' else {})} for e in source['elements']]}
+        small = {**big, 'elements': [{**e, **({'font_size': e['font_size'] * 0.5} if e['type'] == 'text' else {})}
+                                     for e in big['elements']]}
+        self.assertGreater(score(source, big, report), score(source, small, report))
+
 
 if __name__ == '__main__':
     unittest.main()

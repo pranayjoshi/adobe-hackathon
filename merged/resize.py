@@ -21,6 +21,13 @@ adds two hooks to the pipeline at run time, and the final choice is re-ranked he
    layouts. Real problems (collisions, overflow, lost contrast, unreadable or overlapping
    text, wasted canvas) still count in full, and only a floor plan whose headline is at
    least 85% as big as the best other layout's gets the leeway: bolder, never smaller.
+8. The final choice is made by what the judges preferred (MERGED_PREFS=0 turns this off).
+   The blind study's 600 votes showed that text size, headline size and wasted canvas decide
+   the vote, while our defect counts barely do; ranking by defect count first is what kept
+   choosing small, safe layouts. A shortlist (the ranking's top picks, the best floor plan, and
+   Gaurav's layout from his engine, merged.gaurav_bridge, with any distorted image restored to
+   its proportions) is scored by merged.prefs, a model fitted on those votes. Hard rules still
+   veto: no distorted image, no text pushed off the canvas.
 """
 from __future__ import annotations
 
@@ -130,6 +137,62 @@ def scale_spacing(source, design):
     return design
 
 
+def prefs_on() -> bool:
+    return os.environ.get('MERGED_PREFS', '1') != '0'
+
+
+SHORTLIST = 4   # the ranking's top picks that the judges' model chooses among
+
+
+def unstretch(source, design):
+    """Fit every image whose box lost its source proportions back inside that box, centred
+    (position and size only). Cover-cropped canvas backgrounds are left as they are."""
+    import copy
+    src = {e['id']: e for e in source['elements']}
+    out = copy.deepcopy(design)
+    for e in out['elements']:
+        s = src.get(e['id'])
+        if e['type'] != 'image' or e.get('fit') == 'cover' or not s or min(s['width'], s['height'], e['width'], e['height']) <= 0:
+            continue
+        a = s['width'] / s['height']
+        if abs(e['width'] / e['height'] / a - 1) <= 0.01:
+            continue
+        w, h = min(e['width'], e['height'] * a), min(e['height'], e['width'] / a)
+        e.update(x=e['x'] + (e['width'] - w) / 2, y=e['y'] + (e['height'] - h) / 2, width=w, height=h)
+    return out
+
+
+def vetoed(r) -> bool:
+    """Hard rules the judges' model may not trade away: a distorted image, text off the canvas."""
+    for c in r['checks']:
+        if not c['passed'] and c['name'] == 'Image proportions kept':
+            return True
+    d = r['design']; W, H = d['canvas']['width'], d['canvas']['height']
+    for e in d['elements']:
+        if e['type'] == 'text' and (e['x'] < -0.5 or e['y'] < -0.5 or e['x'] + e['width'] > W + 0.5 or e['y'] + e['height'] > H + 0.5):
+            return True
+    return False
+
+
+def choose(source, target, results, top, key):
+    """The shortlist's layout the judges' model scores highest (`top` when nothing beats it)."""
+    from engine.canonical import cover_backdrops
+    from engine.pipeline import analyze, assess_design
+    from merged import gaurav_bridge, prefs
+    shortlist = [top] + [r for r in results if r is not top][:SHORTLIST - 1]
+    plans = [r for r in results if is_floorplan(r)]
+    if plans and plans[0] not in shortlist:
+        shortlist.append(plans[0])   # results are sorted, so this is the best floor plan
+    theirs = gaurav_bridge.resize(source, target)
+    if theirs:
+        theirs = unstretch(source, cover_backdrops(source, {'canvas': dict(target), 'elements': theirs['elements']}))
+        r = assess_design(source, target, theirs, analyze(source), "Gaurav's layout")
+        r['template'] = 'gaurav'
+        shortlist.append(r)
+    allowed = [r for r in shortlist if not vetoed(r)] or [top]
+    return max(allowed, key=lambda r: (prefs.score(source, r['design'], r), r is top))
+
+
 def resize_with_report(source: dict[str, Any], target_canvas: dict[str, Any]) -> dict[str, Any]:
     import copy
     from engine.pipeline import generate
@@ -150,11 +213,13 @@ def resize_with_report(source: dict[str, Any], target_canvas: dict[str, Any]) ->
         # Every candidate fails some structural check (often one the source fails too, such as
         # a layer it already hides): keep the one failing the fewest, as the ranking orders them.
         top = min(results, key=lambda r: sum(not c['passed'] for c in r['checks']))
+    if prefs_on():
+        top = choose(source, target, results, top, key)
     design = copy.deepcopy(top['design'])
     if os.environ.get('MERGED_SCALE_SPACING', '1') != '0':
         design = scale_spacing(source, design)
     return {'design': design, 'template': top['template'], 'floorplan': is_floorplan(top), 'valid': bool(top['valid']),
-            'passed_guardrails': bool(top['valid'] and top['rubric']['gate']),
+            'passed_guardrails': bool(top['valid'] and (top.get('rubric') or {}).get('gate')),
             'wasted_canvas': wasted_canvas(source, top['design']), 'candidates': len(results)}
 
 

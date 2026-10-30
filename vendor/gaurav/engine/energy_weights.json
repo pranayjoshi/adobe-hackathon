@@ -1,0 +1,257 @@
+{
+ "weights": {
+  "pres.align": 10.0275,
+  "pres.prox": 11.9094,
+  "pres.order": 18.1185,
+  "pres.hier": 6.7212,
+  "pres.anchor": 1.0,
+  "pres.contain": 10.2731,
+  "pres.symmetry": 1.0,
+  "pres.scale": 1.0,
+  "pres.drift": 7.6622,
+  "aes.align": 1.0,
+  "aes.near_miss": 1.0,
+  "aes.balance": 2.492,
+  "aes.spacing": 1.0,
+  "aes.cohesion": 1.0005,
+  "aes.fill": 1.0,
+  "aes.margins": 1.0,
+  "aes.hier": 4.5725,
+  "aes.read": 4.767,
+  "aes.lines": 2.0024,
+  "aes.contrast": 7.8834,
+  "aes.size": 2.4518,
+  "aes.presence": 2.1187
+ },
+ "temperature": 0.081798,
+ "meta": {
+  "generated": "2026-10-25T00:08:50",
+  "kind": "energy",
+  "files": {
+   "labels": "/Users/gauravshrivastava/Projects/AdobeHack/chameleon/eval/data/labels.jsonl",
+   "weak": "/Users/gauravshrivastava/Projects/AdobeHack/chameleon/eval/data/labels_weak.jsonl",
+   "designer": "/Users/gauravshrivastava/Projects/AdobeHack/chameleon/eval/data/labels_designer_engine.jsonl",
+   "perturb": "/Users/gauravshrivastava/Projects/AdobeHack/chameleon/eval/data/labels_designer_perturb.jsonl"
+  },
+  "n_pairs": 2459,
+  "n_by_kind": {
+   "designer": 552,
+   "human": 57,
+   "weak": 1850
+  },
+  "n_held_out": 476,
+  "weak_weight": 0.3,
+  "designer_weight": 1.0,
+  "floor": 0.01,
+  "l2": 0.5,
+  "min_pairs": 5,
+  "loss": 0.6711791520570616,
+  "frozen": [],
+  "agreement_hand": {
+   "n": 2442,
+   "agree": 0.7666,
+   "agree_weighted": 0.5934
+  },
+  "agreement_fitted": {
+   "n": 2442,
+   "agree": 0.7981,
+   "agree_weighted": 0.6532
+  },
+  "agreement_lodo": {
+   "n": 2442,
+   "agree": 0.6489,
+   "folds": 60
+  },
+  "agreement_by_kind_hand": {
+   "designer": {
+    "n": 552,
+    "agree": 0.2663,
+    "agree_weighted": 0.2663
+   },
+   "human": {
+    "n": 40,
+    "agree": 0.575,
+    "agree_weighted": 0.575
+   },
+   "weak": {
+    "n": 1850,
+    "agree": 0.92,
+    "agree_weighted": 0.92
+   }
+  },
+  "agreement_by_kind_fitted": {
+   "designer": {
+    "n": 552,
+    "agree": 0.3859,
+    "agree_weighted": 0.3859
+   },
+   "human": {
+    "n": 40,
+    "agree": 0.55,
+    "agree_weighted": 0.55
+   },
+   "weak": {
+    "n": 1850,
+    "agree": 0.9265,
+    "agree_weighted": 0.9265
+   }
+  },
+  "agreement_holdout_hand": {
+   "n": 476,
+   "agree": 0.7542,
+   "agree_weighted": 0.5938
+  },
+  "agreement_holdout_fitted": {
+   "n": 476,
+   "agree": 0.792,
+   "agree_weighted": 0.6664
+  },
+  "per_perturbation": {},
+  "components": {
+   "pres.align": {
+    "n": 945,
+    "agree": 0.8011,
+    "differs_share": 0.387
+   },
+   "pres.prox": {
+    "n": 934,
+    "agree": 0.7238,
+    "differs_share": 0.3825
+   },
+   "pres.order": {
+    "n": 981,
+    "agree": 0.7839,
+    "differs_share": 0.4017
+   },
+   "pres.hier": {
+    "n": 327,
+    "agree": 0.6789,
+    "differs_share": 0.1339
+   },
+   "pres.anchor": {
+    "n": 867,
+    "agree": 0.5975,
+    "differs_share": 0.355
+   },
+   "pres.contain": {
+    "n": 307,
+    "agree": 0.7427,
+    "differs_share": 0.1257
+   },
+   "pres.symmetry": {
+    "n": 442,
+    "agree": 0.6652,
+    "differs_share": 0.181
+   },
+   "pres.scale": {
+    "n": 589,
+    "agree": 0.3667,
+    "differs_share": 0.2412
+   },
+   "pres.drift": {
+    "n": 793,
+    "agree": 0.7264,
+    "differs_share": 0.3247
+   },
+   "aes.align": {
+    "n": 1698,
+    "agree": 0.5901,
+    "differs_share": 0.6953
+   },
+   "aes.near_miss": {
+    "n": 1016,
+    "agree": 0.4734,
+    "differs_share": 0.4161
+   },
+   "aes.balance": {
+    "n": 2393,
+    "agree": 0.5311,
+    "differs_share": 0.9799
+   },
+   "aes.spacing": {
+    "n": 897,
+    "agree": 0.5039,
+    "differs_share": 0.3673
+   },
+   "aes.cohesion": {
+    "n": 654,
+    "agree": 0.5765,
+    "differs_share": 0.2678
+   },
+   "aes.fill": {
+    "n": 974,
+    "agree": 0.4374,
+    "differs_share": 0.3989
+   },
+   "aes.margins": {
+    "n": 347,
+    "agree": 0.4207,
+    "differs_share": 0.1421
+   },
+   "aes.hier": {
+    "n": 480,
+    "agree": 0.7396,
+    "differs_share": 0.1966
+   },
+   "aes.read": {
+    "n": 963,
+    "agree": 0.6667,
+    "differs_share": 0.3943
+   },
+   "aes.lines": {
+    "n": 63,
+    "agree": 0.2063,
+    "differs_share": 0.0258
+   },
+   "aes.contrast": {
+    "n": 438,
+    "agree": 0.6142,
+    "differs_share": 0.1794
+   },
+   "aes.size": {
+    "n": 1058,
+    "agree": 0.6616,
+    "differs_share": 0.4333
+   },
+   "aes.presence": {
+    "n": 244,
+    "agree": 0.3648,
+    "differs_share": 0.0999
+   }
+  },
+  "hand_weights": {
+   "pres.align": 8.0,
+   "pres.prox": 7.0,
+   "pres.order": 10.0,
+   "pres.hier": 6.0,
+   "pres.anchor": 5.0,
+   "pres.contain": 4.0,
+   "pres.symmetry": 3.0,
+   "pres.scale": 3.0,
+   "pres.drift": 8.0,
+   "aes.align": 6.0,
+   "aes.near_miss": 3.0,
+   "aes.balance": 5.0,
+   "aes.spacing": 4.0,
+   "aes.cohesion": 3.0,
+   "aes.fill": 5.0,
+   "aes.margins": 3.0,
+   "aes.hier": 3.0,
+   "aes.read": 7.0,
+   "aes.lines": 3.0,
+   "aes.contrast": 5.0,
+   "aes.size": 4.0,
+   "aes.presence": 3.0
+  },
+  "hard_fail_picture": {
+   "designer_pairs": 600,
+   "reference_hard": 47,
+   "engine_hard": 1,
+   "kinds": {
+    "floor": 6,
+    "collide": 46,
+    "contrast": 6
+   }
+  }
+ }
+}
