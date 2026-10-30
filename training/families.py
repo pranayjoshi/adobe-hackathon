@@ -17,6 +17,11 @@ from engine.rubric import tier0, tier1
 SPLITS = ('train', 'validation', 'calibration', 'test')
 
 
+def refuse_qa_corpus(corpus):
+    if (Path(corpus) / 'QA_ONLY').exists():
+        raise ValueError('QA_ONLY workspace contains agent test designs, never training data')
+
+
 def resolve_family(record, fallback=None):
     """Trajectory/resizes inherit original provenance; never split by revision ID."""
     family = record.get('source_family') or record.get('family') or (record.get('metadata') or {}).get('source_id') or fallback
@@ -109,6 +114,7 @@ def match(a, b):
 
 
 def mine(corpus):
+    refuse_qa_corpus(corpus)
     groups = defaultdict(list)
     for path in sorted(Path(corpus).glob('*.json')):
         try:
