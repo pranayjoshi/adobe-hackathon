@@ -38,12 +38,16 @@ It never refuses: if everything fails, the least bad layout returns. If every ge
 
 | Engine | Passes every structural check | Mean seconds |
 |---|---:|---:|
-| **Final** | **145 / 152** | 28.8 |
+| **Final** | **145 / 152** | 15.3 |
 | Final without Gaurav's layouts | 144 / 152 | 24.2 |
 | Merged | 60 / 152 | 22.4 |
 | Gaurav v12 | 6 / 152 | 2.9 |
 
 The 7 remaining failures are hairlines under 1 px, from thin source rules on extreme canvases.
+
+Only the Final row was re-timed after the speedups, four tasks at a time on an otherwise idle machine; the other rows ran under heavier load, so compare their seconds with care. Back to back on 51 of these tasks, the speedups took the final engine from 19.7 s to 15.7 s on average.
+
+Five tasks still lose some text (7 of 616 texts draw under 3 px). Letter spacing is a fixed pixel amount that the rules do not let us change, so widely tracked type on a thin strip may have no size that fits: on a 90 px canvas, 30 px tracking across 18 letters needs 510 px.
 
 The judge model picks the final engine's layout in 79 of 152 tasks, but that is the model grading its own choices. No people have voted on these yet, and one unscientific blind look at 14 tasks showed no visual lead: merged 6, Gaurav 4, final 4. What is established is that the final engine looks competitive while being the only one that reliably obeys the rules.
 

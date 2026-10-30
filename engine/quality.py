@@ -11,6 +11,9 @@ _CACHE: dict[str, Image.Image] = {}
 _CACHE_MAX_BYTES=128*1024*1024
 _ESTIMATES: dict[str, Image.Image] = {}
 _RESOURCE_BYTES = {}
+_DECODED: dict[tuple, Image.Image] = {}
+_DECODED_KEEP = 16
+_KIT: list[tuple[str, str]] = []
 VERIFICATION_PROFILE = 'official-exact-v1'
 
 def _file_hash(path):
@@ -22,6 +25,14 @@ def _file_hash(path):
     return _RESOURCE_BYTES[signature]
 
 _PLACEHOLDER_WARNING=re.compile(r"^Missing asset '([^']*)' for element '[^']*' - rendered a placeholder\.$")
+
+def _kit_hashes():
+    """The fonts' and renderer's identities, read once per process: neither changes during a run."""
+    if not _KIT:
+        paths=[p for p in FONTS_DIR.rglob('*') if p.is_file() and p.suffix.lower() in ('.ttf','.otf','.json')]
+        paths+=list((ROOT/'renderer'/'converter').glob('*.py'))+[ROOT/'engine'/'render_worker.py']
+        _KIT.extend((str(p.relative_to(ROOT)) if p.is_relative_to(ROOT) else str(p),_file_hash(p)) for p in sorted(set(paths)))
+    return _KIT
 
 def resource_fingerprint(design, *, allow_missing=False):
     """Include actual images, all available font faces and renderer implementation."""
@@ -36,10 +47,8 @@ def resource_fingerprint(design, *, allow_missing=False):
             if not allow_missing:raise ValueError('Missing or unsafe image asset: '+asset)
             missing.append(asset);continue
         paths.append(path)
-    paths += [p for p in FONTS_DIR.rglob('*') if p.is_file() and p.suffix.lower() in ('.ttf','.otf','.json')]
-    paths += list((ROOT/'renderer'/'converter').glob('*.py'))
-    paths += [ROOT/'engine'/'render_worker.py']
-    values=[(str(p.relative_to(ROOT)) if p.is_relative_to(ROOT) else str(p),_file_hash(p)) for p in sorted(set(paths))]
+    values=[(str(p.relative_to(ROOT)) if p.is_relative_to(ROOT) else str(p),_file_hash(p)) for p in sorted(set(paths))]+_kit_hashes()
+    values.sort()
     # Installed native renderer package is also part of the rendering profile.
     from importlib.metadata import version, PackageNotFoundError
     try: native=version('cr-renderer')
@@ -184,6 +193,16 @@ def color(value, opacity=1):
     except (ValueError,TypeError): r,g,b,a=0,0,0,255
     return r,g,b,round(a*max(0,min(1,float(opacity))))
 
+def _decoded(path):
+    """An image's RGBA pixels, decoded once while its bytes stay the same. Callers must not edit it."""
+    key=(str(path),_file_hash(path))
+    if key not in _DECODED:
+        with Image.open(path) as im:
+            if max(im.size)>16384 or im.width*im.height>32_000_000:raise ValueError('Original image exceeds diagnostic decode limit: '+str(path.name))
+            if len(_DECODED)>=_DECODED_KEEP:_DECODED.pop(next(iter(_DECODED)))
+            _DECODED[key]=im.convert('RGBA')
+    return _DECODED[key]
+
 def composite(design, size=640):
     """Coarse non-text composite; diagnostic only, original assets untouched."""
     cw,ch=design['canvas']['width'],design['canvas']['height']
@@ -208,14 +227,11 @@ def composite(design, size=640):
         if e['type']=='image':
             path=(ASSETS_DIR/str(e.get('asset_id',''))).resolve()
             if path.is_relative_to(ASSETS_DIR.resolve()) and path.is_file():
-                with Image.open(path) as im:
-                    if max(im.size)>16384 or im.width*im.height>32_000_000:
-                        raise ValueError('Original image exceeds diagnostic decode limit: '+str(e.get('id')))
-                    im=im.convert('RGBA')
-                    if e.get('fit')=='cover':layer=ImageOps.fit(im,(w,h))
-                    elif e.get('fit')=='fill':layer=im.resize((w,h))
-                    else:
-                        layer=Image.new('RGBA',(w,h)); fitted=ImageOps.contain(im,(w,h));layer.alpha_composite(fitted,((w-fitted.width)//2,(h-fitted.height)//2))
+                im=_decoded(path)
+                if e.get('fit')=='cover':layer=ImageOps.fit(im,(w,h))
+                elif e.get('fit')=='fill':layer=im.resize((w,h))
+                else:
+                    layer=Image.new('RGBA',(w,h)); fitted=ImageOps.contain(im,(w,h));layer.alpha_composite(fitted,((w-fitted.width)//2,(h-fitted.height)//2))
                 layer.putalpha(layer.getchannel('A').point(lambda a:round(a*float(e.get('opacity',1)))))
             else:layer=Image.new('RGBA',(w,h),(180,180,180,255))
         else:

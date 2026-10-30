@@ -7,11 +7,12 @@ field can differ from the source.
 from __future__ import annotations
 
 import copy
+import math
 from typing import Any
 
 from engine.canonical import MUTABLE_FIELDS, rotated_extent
 from engine.scene import background_cover_allowed
-from engine.typography import fit_text
+from engine.typography import fit_text, measure
 
 
 def _clip_rect(e, W, H):
@@ -44,9 +45,43 @@ def _proportions(e, s):
     e['width'], e['height'] = w, h
 
 
-def _text(e, s, wanted):
-    fit = fit_text(e, max(1.0, e['width']), max(1.0, e['height']), max(1, int(round(wanted))))
-    e['font_size'] = fit.font_size if not fit.overflow else max(1, min(int(round(wanted)), fit.font_size))
+def _room(e, W, H):
+    """The largest box this element's rotation can have on the canvas (width, height)."""
+    t = math.radians(float(e.get('rotation') or 0.0))
+    c, s = abs(math.cos(t)), abs(math.sin(t))
+    if s < 0.2:
+        return float(W), float(H)
+    if c < 0.2:
+        return float(H), float(W)
+    side = min(W, H) / (c + s)
+    return side, side
+
+
+def _text(e, wanted, W, H):
+    """Keep the wanted size if the text fits; else widen its box before shrinking the type.
+
+    The layout's box may have been measured with tighter tracking than the source's, which is
+    restored here, so a box that no longer fits says nothing about how small the type must be.
+    """
+    size = max(1, int(round(wanted)))
+    width, height = max(1.0, e['width']), max(1.0, e['height'])
+    fit = measure(e, size, width)
+    if not fit.overflow and fit.height <= height + 0.5:
+        e['font_size'] = size
+        return
+    room_w, room_h = _room(e, W, H)
+    cx, cy = e['x'] + e['width'] / 2, e['y'] + e['height'] / 2
+    for k in range(9):
+        w = width + (max(width, room_w) - width) * k / 8
+        fit = measure(e, size, w)
+        if not fit.overflow and fit.height <= room_h + 0.5:
+            break
+    else:
+        fit = fit_text(e, room_w, room_h, size)
+        w = room_w
+    e['font_size'] = fit.font_size
+    e['width'], e['height'] = min(w, room_w), min(max(fit.height, 1.0), room_h)
+    e['x'], e['y'] = cx - e['width'] / 2, cy - e['height'] / 2
 
 
 def comply(source: dict[str, Any], design: dict[str, Any]) -> dict[str, Any]:
@@ -69,9 +104,9 @@ def comply(source: dict[str, Any], design: dict[str, Any]) -> dict[str, Any]:
                 e.update(x=x0, y=y0, width=x1 - x0, height=y1 - y0)
         if e['type'] == 'image' and s.get('fit') != 'cover':
             _proportions(e, s)
-        _inside(e, W, H)
         if e['type'] == 'text':
-            _text(e, s, (got or s)['font_size'])
+            _text(e, (got or s)['font_size'], W, H)
+        _inside(e, W, H)
         e['width'], e['height'] = max(1.0, e['width']), max(1.0, e['height'])
         _inside(e, W, H)
         out.append(e)

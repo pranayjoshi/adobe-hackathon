@@ -5,7 +5,7 @@ import numpy as np
 from engine.invariants import passes, validate
 from final import pixels
 from final.comply import comply
-from final.resize import gate, overprinted
+from final.resize import gate, overprinted, vanished
 
 
 def text(id, x, y, w, h, size, z, content='Hello there', **extra):
@@ -61,6 +61,25 @@ class GateTest(unittest.TestCase):
 
 
 class PixelsTest(unittest.TestCase):
+    def test_restored_tracking_widens_the_box_instead_of_killing_the_type(self):
+        src = {'canvas': {'width': 1000, 'height': 1000},
+               'elements': [text('t', 0, 0, 600, 50, 40, 0, content='HOW TO TAKE', letter_spacing=25.0)]}
+        narrow = {'canvas': {'width': 970, 'height': 250},
+                  'elements': [{'id': 't', 'x': 100, 'y': 100, 'width': 150, 'height': 18, 'font_size': 15}]}
+        out = comply(src, narrow)['elements'][0]
+        self.assertEqual(out['font_size'], 15)
+        self.assertGreater(out['width'], 150)
+        self.assertTrue(passes(validate(src, comply(src, narrow))))
+
+    def test_the_gate_prefers_layouts_that_keep_their_text_visible(self):
+        src = {'canvas': {'width': 1000, 'height': 1000}, 'elements': [text('t', 0, 0, 600, 50, 40, 0)]}
+        def report(size):
+            design = {'canvas': {'width': 300, 'height': 250}, 'elements': [text('t', 0, 0, 200, 40, size, 0)]}
+            return {'design': design, 'checks': [], 'quality': {'defects': {}}}
+        gone, seen = report(1), report(12)
+        self.assertEqual(vanished(src, gone['design']), 1)
+        self.assertEqual(gate(src, [gone, seen]), [seen])
+
     def test_a_letterboxed_picture_measures_as_unused(self):
         full = np.zeros((90, 300, 3), dtype=np.uint8) + 255
         full[20:70, 10:290] = (200, 30, 30)

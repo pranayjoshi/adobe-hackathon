@@ -2,8 +2,9 @@
 
 1. Generate broadly: our pipeline with the merged engine's floor plans and growth rules, plus
    Gaurav's best layouts, each rebuilt by final.comply so it obeys the structural rules.
-2. Gate: only layouts failing the fewest structural checks stay; then new text overflow, text
-   printed over text, newly hidden elements and lost contrast are ruled out, when anything is left.
+2. Gate: only layouts failing the fewest structural checks stay, then those losing the fewest
+   texts to tiny type; then new text overflow, text printed over text, newly hidden elements and
+   lost contrast are ruled out, when anything is left.
 3. Judge: the survivors are drawn by the official renderer and the model fitted on the blind
    panel's votes picks one. It never refuses: when everything fails, the least bad layout returns.
 
@@ -12,13 +13,17 @@ Unlike merged/, letter spacing is never changed: the FAQ allows position, size a
 from __future__ import annotations
 
 import copy
+import os
+from concurrent.futures import ThreadPoolExecutor
 from typing import Any
 
 from final import gaurav, pixels, prefs
 from final.comply import comply
 
 SHORTLIST = 5        # the pipeline's top layouts by its own ranking
+REFINE_SECONDS = float(os.environ.get('FINAL_REFINE_SECONDS', 12))   # the pipeline's hill-climb budget
 TEXT_OVERPRINT = 0.15   # share of the smaller text box newly covered by another text
+MIN_TEXT_PX = 3         # type below this is gone to the eye, though its element is still there
 
 
 def _pairs(design):
@@ -40,6 +45,15 @@ def failed_checks(report) -> int:
     return sum(not c['passed'] for c in report['checks'] if c['severity'] == 'error')
 
 
+def vanished(source, design) -> int:
+    """Texts the source shows that this layout draws too small to see."""
+    out = {e['id']: e for e in design['elements']}
+    shown = (e for e in source['elements'] if e['type'] == 'text' and str(e.get('content') or '').strip()
+             and e.get('opacity', 1) > 0)
+    return sum(1 for s in shown if (e := out.get(s['id'])) is None or e['font_size'] < MIN_TEXT_PX
+               or min(e['width'], e['height']) < MIN_TEXT_PX)
+
+
 def real_problem(source, report) -> bool:
     from engine.pipeline import _new_occlusion
     defects = report['quality']['defects']
@@ -50,6 +64,8 @@ def real_problem(source, report) -> bool:
 def gate(source, pool):
     fewest = min(failed_checks(r) for r in pool)
     legal = [r for r in pool if failed_checks(r) == fewest]
+    least = min(vanished(source, r['design']) for r in legal)
+    legal = [r for r in legal if vanished(source, r['design']) == least]
     return [r for r in legal if not real_problem(source, r)] or legal
 
 
@@ -58,7 +74,7 @@ def _shortlist(source, target):
     from merged.resize import install, is_floorplan, rank_key
     install()
     try:
-        results = generate(source, target, all_candidates=True)
+        results = generate(source, target, all_candidates=True, options={'refine_seconds': REFINE_SECONDS})
     except Exception:
         return []
     results.sort(key=lambda r: rank_key(source, r), reverse=True)
@@ -67,10 +83,10 @@ def _shortlist(source, target):
     return picked + plans[:2]
 
 
-def _foreign(source, target):
+def _foreign(source, target, items):
     from engine.pipeline import analyze, assess_design
     pool = []
-    for item in gaurav.candidates(source, target):
+    for item in items:
         try:
             design = comply(source, {'canvas': target, 'elements': item['design']['elements']})
             report = assess_design(source, target, design, analyze(source), item['name'])
@@ -97,7 +113,10 @@ def _uniform(source, target):
 
 def resize_with_report(source: dict[str, Any], target_canvas: dict[str, Any]) -> dict[str, Any]:
     target = {'width': int(target_canvas['width']), 'height': int(target_canvas['height'])}
-    pool = _shortlist(source, target) + _foreign(source, target)
+    with ThreadPoolExecutor(1) as helper:   # his engine runs in its own process: ask it while ours works
+        theirs = helper.submit(gaurav.candidates, source, target)
+        ours = _shortlist(source, target)
+        pool = ours + _foreign(source, target, theirs.result())
     if not pool:
         return {'design': _uniform(source, target), 'template': 'uniform', 'candidates': 0, 'failed_checks': None}
     survivors = gate(source, pool)
