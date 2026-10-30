@@ -1,174 +1,203 @@
-# Chameleon — adaptive layout engine
+<div align="center">
 
-Retargets structured designs while preserving every element, text string, font family, original asset reference, and non-layout property. The pipeline searches arrangements and scales, fits measured typography, repairs groups, optimizes placement with CP-SAT, retrieves training geometry, checks composited/rendered contrast, and returns ranked editable JSON candidates.
+# 🦎 Chameleon
 
-**Submission entry point:** `python -m final.main` (the Docker image), which combines every approach in this repository. See [final/README.md](final/README.md).
+### Any design. Every canvas.
 
-## Run locally
+**A resize engine that moves the furniture instead of stretching the picture.**<br>
+Give it a finished design and a new canvas size. It rearranges the same elements so the result still looks designed.
 
-```sh
-python3 -m venv .venv
-.venv/bin/pip install -r requirements-dev.txt
-npm --prefix viewer install
-npm --prefix viewer run build
-.venv/bin/uvicorn service.app:app --host 127.0.0.1 --port 8765
-```
+Adobe University Hackathon: North America 2026 · Project Chameleon
 
-Open **http://127.0.0.1:8765**. For frontend development, `npm --prefix viewer run dev` starts port 5180 with the API proxy. The competition interface remains `python -m engine.main` and runs without network access.
+`Offline` · `Docker linux/amd64` · `No image generation` · `96.6% structurally clean on unseen designs`
 
-The viewer also offers an experimental **Workflow** selector for one-design refinement, composition recovery, or a small shortlist. These modes keep a verified checkpoint, save edit history, and support canonical geometry corrections with undo/redo and revision-specific feedback. The optional joint solver chooses measured text configurations as well as positions. Legacy generation and placement remain defaults until independent visual evidence supports promotion. Local jobs, partial results and feedback persist in SQLite; generation runs in supervised worker processes.
+</div>
 
-Implementation scope, visual experiments and limitations are recorded in [the Codex execution report](docs/individual-update-plans/22-codex-execution-report.md). Human feedback can be exported with `python -m tools.export_preferences --out output/human-preferences/labels.jsonl`; saving feedback does not automatically train or deploy a model.
+<br>
 
-The viewer includes a [Crello browser](docs/crello-browser.md) with 60 locally imported validation designs, original layer images and fonts, preview comparison, search and filters. Rebuild it with `.venv/bin/python -m tools.build_crello_catalog --download --limit 60` and restart the service.
+| Level 1: 1080×1080 → 1080×1350 | Level 2: 1080×1080 → 1600×400 |
+|:---:|:---:|
+| <img src="docs/readme/level1-result.png" height="300" alt="Level 1 result"> | <img src="docs/readme/level2-result.png" width="500" alt="Level 2 result"> |
 
-The viewer supports sample/custom JSON designs, custom sizes, headline/product emphasis, placement locks, all-candidate inspection, diagnostics, repair traces, job progress/cancellation, saved history, blind preference labels, and evaluation reports. Review workspace is available from the header.
+<div align="center">
 
-## Engine and model status
+**Level 3: 17 elements, 1080×1350 → 728×90**
 
-| Component | Status |
-|---|---|
-| Arrangements, typography, preservation checks | Active |
-| Group repair, CP-SAT placement, visual diagnostics | Active |
-| Retrieval | Active; 638 geometry-only training-family layouts |
-| Learned role suggestions | Trained 48-tree pilot, opt-in through viewer or `CHAMELEON_ROLE_MODEL=1` |
-| Preference learning | Human-label collection and held-out fitting available; no human-trained ranker deployed |
-| Local visual model | Optional isolated proposal adapter; requires compatible native library, permitted weights and projector |
-| Express panel | Separate prototype in `express_addon/`; builds, live Adobe application unverified |
+<img src="docs/readme/level3-result.png" width="728" alt="Level 3 result">
 
-The role pilot was trained on 1,256 public designs joined to machine-distilled descriptions and achieves 62.74% accuracy against held-out weak labels. This does not measure human layout quality. Dataset revisions, hashes, split policy, and attribution are in `engine/models/`. Neural inference makes no automatic downloads. See [feature coverage and validation](docs/feature-upgrade-2026-10-24.md) for precise limits.
+</div>
 
-## Evaluation, data, and training
+## Quick start
 
-```sh
-.venv/bin/python -m unittest discover -s tests -v
-.venv/bin/python -m evaluation.benchmark --name samples --render
-.venv/bin/python -m evaluation.synthetic --count 100
-.venv/bin/python -m evaluation.benchmark --corpus output/synthetic --name stress
-.venv/bin/python -m tools.import_corpus YOUR_JSON_CORPUS output/curated
-.venv/bin/python -m tools.build_library YOUR_REVIEWED_TRAINING_CORPUS
-.venv/bin/python -m tools.bootstrap_roles --shards 2
-.venv/bin/python -m tools.train_roles work/role-data/labels.jsonl
-.venv/bin/python -m tools.calibrate output/workspace/labels.jsonl --synthetic output/training/perturb/pairs.jsonl
-```
-
-### Guardrails, judging, and model training
-
-The design rules in [docs/chameleon-design-guardrails-and-eval-rubric.md](docs/chameleon-design-guardrails-and-eval-rubric.md) are implemented in `engine/rubric.py`. After the first pass, `engine/refine.py` takes the three best distinct candidates and hill-climbs each against its rubric issues (margins, alignment, small text, collisions, gaps, groups, type order). It keeps a change only if the candidate ranks strictly higher, and it never trades in a release-blocking defect. Disable it with the viewer's *Refine best 3* toggle or `options={'refine': False}`; `refine_seconds` sets the time budget (default 12 s). Every candidate carries a tiered `rubric` report. Candidates failing Tier 0 (disqualifiers) or Tier 1 (structure) rank last, and Tier 2 design defects count against ranking.
-
-```sh
-.venv/bin/python -m evaluation.benchmark --name release --render --offline   # catalogue sizes, tiers, aspect buckets
-.venv/bin/pip install -r requirements-eval.txt                               # Tier 3 judge (development only)
-.venv/bin/python -m evaluation.judge compare output/evaluation/release output/evaluation/previous
-.venv/bin/python -m evaluation.release_gate output/evaluation/release --baseline output/evaluation/previous
-```
-
-Training follows [docs/chameleon-design-principles-for-training.md](docs/chameleon-design-principles-for-training.md). Signals come from the same rubric code. See section 8 there for the full command sequence (`training.perturb`, `training.families`, `training.export`, `training.train_ranker`, `training.train_vlm`; ML dependencies in `requirements-train.txt`).
-
-Runs live in ignored `output/`. The benchmark produces case snapshots, separate structural/text/collision/contrast counts, timing, and an HTML report. Human calibration exports a proposed ranker to `output/calibration/`; review the family-held-out results before deploying it as `engine/models/ranker.json`. Metadata-only Crello extraction is available through `python -m tools.import_crello --help`; it never substitutes images or silently claims faithful reconstruction.
-
-For local VLM experiments, install `requirements-vlm.txt`, provide `CHAMELEON_VLM_MODEL` and `CHAMELEON_VLM_MMPROJ`, then enable `CHAMELEON_VLM=1`. This native backend was not validated with real model weights during the upgrade. `tools.fetch_weights` requires an HTTPS URL and SHA256 for explicit build-time downloads; `Dockerfile.vlm` is an optional packaging path. Confirm challenge model eligibility before submission. The default Dockerfile ships the offline deterministic engine and small local artifacts.
-
----
-
-# Starter repo notes
-
-# CHAMELEON — starter repo
-
-This is the scaffolding for your engine. It handles input loading, output
-writing, rendering, and Docker packaging — so the only file you need to
-edit is **`engine/resize.py`**.
-
-```
-input:  a task JSON (source design + target canvas)
-              |
-              v
-        engine/resize.py   <-- YOU IMPLEMENT THIS
-              |
-              v
-output: <task>_output.json  (schema-valid resized design)
-        <task>_output.png   (rendered preview)
-```
-
-Both the JSON and the PNG are what get evaluated — see `RULES.md`.
-
-## Repo layout
-
-```
-engine/
-  resize.py        <- implement your approach here
-  main.py           <- orchestrator (input -> resize() -> output). Don't need to edit this.
-renderer/           <- the real renderer (transformer-convertor + cr-renderer), already vendored
-brand_kit/
-  assets/           <- image files referenced by asset_id in the sample designs
-  fonts/            <- font files matching the schema's font_family values
-input/               <- drop task JSON files here for local testing (3 samples included)
-output/              <- results land here
-chameleon_design_schema_v0.9.json   <- full field-by-field spec for the design format
-Dockerfile
-RULES.md
-```
-
-## Quick start (no Docker needed for iterating on `resize()`)
-
-```bash
-pip install -r requirements.txt
-python -m engine.main
-```
-
-This processes every `*.json` file in `input/` (the 3 sample designs are
-already there — one per difficulty level) and writes an `_output.json` and
-`_output.png` for each into `output/`.
-
-The included baseline is a **uniform stretch** — deliberately the wrong
-approach (see the main brief: "a naive program stretches the picture; a
-good one moves the furniture"). It's there so the pipeline runs on day
-one. Run it once, look at `output/*_output.png`, and you'll see exactly
-why it's not good enough — that's the point. Replace the body of
-`resize()` in `engine/resize.py`, not just its constants.
-
-## What the self-check does (and doesn't do)
-
-`main.py` runs a quick structural check after every task — same element
-`id`s as the source, required fields present, nothing off-canvas. **This
-is not the official scorer.** It exists to catch obvious mistakes before
-you waste a submission on them. See `RULES.md` for what's actually
-checked and graded.
-
-A self-check warning does not fail the run — your JSON and PNG are still
-written either way. Read the warning; decide whether it's a real problem
-or, like the Level 2 sample's intentionally corner-bleeding decorative
-circle, an expected one.
-
-## The renderer
-
-`main.py` calls `renderer/converter/convert.py`'s `render_design_to_png()`
-(a vendored copy of `transformer-convertor`, wrapping `cr-renderer`) to
-produce each task's PNG — already wired in, no setup needed. It reads
-fonts/assets from `brand_kit/` and writes a real rendered preview, not a
-placeholder. If you ever see plain labeled boxes instead of real text and
-images in `output/*.png`, that means the import in `main.py` failed (e.g.
-`cr-renderer` didn't install — check `requirements.txt` installed cleanly)
-and it silently fell back to the box-and-label placeholder; don't judge
-your layout quality by that fallback.
-
-## Docker (how you'll actually be run)
+The submission runs exactly the way scoring does:
 
 ```bash
 docker build --platform linux/amd64 -t my-chameleon-engine .
-docker run --rm --network none \
-  -v $(pwd)/input:/app/input \
-  -v $(pwd)/output:/app/output \
-  my-chameleon-engine
 ```
 
-`--network none` matches how stage-one scoring runs: everything your
-engine needs must be installed at **build** time (add it to
-`requirements.txt`), not fetched at run time. If you're using a locally
-hosted model, bake its weights into the image during the build step.
+```bash
+docker run --rm --network none -v $(pwd)/input:/app/input -v $(pwd)/output:/app/output my-chameleon-engine
+```
 
-## See also
+Each task in `input/` produces `output/<task>_output.json` and `output/<task>_output.png`. The image is about 1.2 GB and needs nothing from the network at run time.
 
-- `chameleon_design_schema_v0.9.json` — full input/output field spec
-- `RULES.md` — what's checked, what's graded, and what disqualifies a submission
-- FAQ — for anything not covered above
+Without Docker (Python 3.10+):
+
+```bash
+pip install -r requirements.txt
+```
+
+```bash
+python -m engine.main
+```
+
+## Stretching versus moving the furniture
+
+The same official sample and target, drawn by the official renderer:
+
+| Original | Naive stretch | Chameleon |
+|:---:|:---:|:---:|
+| <img src="docs/readme/level2-source.png" width="220" alt="Original design"> | <img src="docs/readme/level2-stretch.png" width="300" alt="Stretched design"> | <img src="docs/readme/level2-result.png" width="300" alt="Chameleon result"> |
+
+## How it works
+
+No single approach won. People preferred bold layouts that often broke the rules, and strictly legal layouts often looked timid. So the engine generates broadly, makes everything legal, then chooses the way people did.
+
+```mermaid
+flowchart LR
+    A[Source design<br>and target size] --> B[Layout templates]
+    A --> C[Floor plans]
+    A --> D[Learned layout model]
+    A --> E[Gaurav's strategies]
+    E --> F[Repair: position, size<br>and font size only]
+    B --> G{Strict gate}
+    C --> G
+    D --> G
+    F --> G
+    G --> H[Official renderer]
+    H --> I[Judge fitted on<br>human votes]
+    I --> J[Output JSON and PNG]
+```
+
+1. **Generate.** Templates, constraint solving with OR-Tools, a transformer trained on real designs and a second engine's strategies produce a wide pool of layouts.
+2. **Repair.** Layouts that break a rule are rebuilt on untouched copies of the source elements. Only position, size and font size can change.
+3. **Gate.** Layouts failing the fewest structural checks stay, then those losing the fewest texts to tiny type. New overflow, text printed over text, newly hidden elements and lost contrast are ruled out whenever something else survives.
+4. **Judge.** The survivors are drawn by the official renderer, and a small linear model picks one. It learned from human votes which qualities matter: larger type, content that uses the canvas, and a headline that keeps its presence.
+
+The engine never refuses a task. If everything fails, the least bad layout comes back, and missing assets or unknown fonts don't crash it.
+
+## Results
+
+### On designs nothing was tuned on
+
+146 fresh designs, 292 tasks, run once after every decision was frozen.
+
+| Measure | Result |
+|:---|---:|
+| Pass every structural check | **282 of 292 (96.6%)** |
+| Same measure on the voted designs | 145 of 152 (95.4%) |
+| Tasks where some text draws under 3 px | 9 of 292 |
+| Seconds per task, median / mean / slowest | 11.9 / 13.4 / 48.9 |
+
+The two pass rates match, which is the check we care about most: there is no sign of overfitting. These checks are our own copy of the published rules, not the official scorer.
+
+### What people picked
+
+On 152 held-out tasks, comparing three engines:
+
+| Engine | Picked as best | Passes every structural check |
+|:---|---:|---:|
+| **Final engine** | **60.5%** | **145 of 152** |
+| Merged engine | 21.1% | 60 of 152 |
+| Gaurav's v12 alone | 15.1% | 6 of 152 |
+
+Ties count for both engines. In 12.5% of tasks every option was marked bad.
+
+> **How far to trust this vote.** It reflects effectively one judge, because all three name rows received identical picks, and engine names were visible. An earlier round on different designs, with three independent judges voting blind, is what the judge model was trained on.
+
+### Sample results on unseen designs
+
+Original on the left of each group, then two new sizes. These are tasks the panel picked as best, so they show the engine at its better end.
+
+<img src="docs/readme/gallery.png" alt="Gallery of resized designs">
+
+<sub>Designs from the [Crello dataset](https://huggingface.co/datasets/cyberagent/crello) (CDLA-Permissive-2.0).</sub>
+
+## Keeping it general
+
+The brief rules out anything hand-tailored to a design or a size. We held ourselves to that:
+
+- No design-specific rules, ids or titles anywhere in the engine code.
+- Any model change had to beat the old one on designs held out from fitting. Two new judge features and a refit on both vote rounds did not, so they were rejected.
+- 146 designs were set aside and used only once, at the very end.
+- Speedups had to reproduce the old layouts exactly. With time limits removed, 15 of 15 test tasks came out identical.
+
+## Rules checklist
+
+| Requirement | Status |
+|:---|:---|
+| Same element ids and count, nothing added or removed | ✅ Checked on every output |
+| Text, fonts, colours and assets unchanged | ✅ Only position, size and font size are changed, plus crop fit on backgrounds |
+| Nothing off-canvas | ✅ Checked on every output |
+| Images kept in proportion | ✅ 1 miss in 292 unseen tasks |
+| No regenerated or invented image content | ✅ No image generation anywhere |
+| Runs offline in a standard container | ✅ Built from a fresh clone, run with `--network none` |
+| Output matches `chameleon_design_schema_v0.9.json` | ✅ Validated |
+| Fine-tuned weights publicly accessible | Our own weights ship in this repository |
+| Read-me with approach and how to run | ✅ This file |
+| Viewer add-on (required, not scored) | ✅ See below, with its limits |
+
+## Viewer
+
+### Express add-on
+
+The add-on in [`express_addon/`](express_addon/) uploads a design, generates options from the final engine and previews them.
+
+<img src="docs/readme/addon.jpg" width="420" alt="Express add-on panel">
+
+```bash
+.venv/bin/uvicorn service.app:app --port 8765
+```
+
+```bash
+npm --prefix express_addon install
+```
+
+```bash
+npm --prefix express_addon run dev
+```
+
+Then open http://127.0.0.1:5241, or sideload `express_addon/dist` using Adobe's add-on development tools.
+
+**Current limits:** it has not been tested inside a live Adobe Express session. Writing a result into an Express document works only for simple designs, so groups, rich text and rounded corners show a clear explanation instead of being applied.
+
+### Developer viewer
+
+A fuller local interface with diagnostics and side-by-side options. After `npm --prefix viewer install` and `npm --prefix viewer run build`, the service above serves it at http://127.0.0.1:8765.
+
+<img src="docs/readme/viewer.jpg" width="760" alt="Developer viewer">
+
+## Known limits
+
+- **Widely spaced type on thin strips.** Letter spacing is fixed in pixels and can't be changed, so 30 px spacing across 18 letters needs 510 px whatever the font size. On a 90 px canvas that text gets very small.
+- **Hairlines on extreme canvases.** Thin rules that keep their proportions can fall under 1 px. This accounts for 9 of the 10 structural misses above.
+- **Some layouts are still poor.** Most often pieces scatter on wide formats such as billboards, or text lands on busy shapes.
+- **Results can vary slightly between runs,** because refinement works within a time budget.
+
+## Repository map
+
+| Path | What it holds |
+|:---|:---|
+| [`final/`](final/) | The submission engine: repair, gate and judge ([details](final/README.md)) |
+| `engine/` | Our layout pipeline, checks and the starter's runner |
+| `merged/` | Floor plans and growth rules |
+| `vendor/gaurav/` | A second engine, used as a source of layouts (`FINAL_GAURAV=0` turns it off) |
+| `renderer/` | The official renderer |
+| `service/`, `viewer/`, `express_addon/` | API, developer viewer and add-on |
+| `tools/`, `evaluation/`, `training/`, `tests/` | Judging tools, benchmarks, model training and tests |
+
+More detail is in the [developer guide](docs/developer-guide.md).
+
+```bash
+.venv/bin/python -m unittest discover -s tests
+```

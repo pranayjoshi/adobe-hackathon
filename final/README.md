@@ -49,7 +49,7 @@ Only the Final row was re-timed after the speedups, four tasks at a time on an o
 
 Five tasks still lose some text (7 of 616 texts draw under 3 px). Letter spacing is a fixed pixel amount that the rules do not let us change, so widely tracked type on a thin strip may have no size that fits: on a 90 px canvas, 30 px tracking across 18 letters needs 510 px.
 
-The judge model picks the final engine's layout in 79 of 152 tasks, but that is the model grading its own choices. No people have voted on these yet, and one unscientific blind look at 14 tasks showed no visual lead: merged 6, Gaurav 4, final 4. What is established is that the final engine looks competitive while being the only one that reliably obeys the rules.
+People voted on these 152 tasks and picked the final engine's layout 60.5% of the time (merged 21.1%, Gaurav's 15.1%; effectively one judge, not blind). On 292 tasks from 146 designs used only once at the end, 282 passed every structural check, matching the 95.4% here, so there is no sign of overfitting.
 
 ## Testing
 

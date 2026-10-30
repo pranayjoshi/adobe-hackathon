@@ -55,7 +55,7 @@ from service.judging import router as judge_router
 app.include_router(judge_router)
 from service.express import router as express_router
 app.include_router(express_router)
-app.add_middleware(CORSMiddleware, allow_origins=["http://localhost:5180","http://127.0.0.1:5180","http://localhost:8765","http://127.0.0.1:8765","http://127.0.0.1:5241","https://localhost:5241"], allow_methods=["*"], allow_headers=["*"])
+app.add_middleware(CORSMiddleware, allow_origin_regex=r"https://[a-z0-9.-]+\.(adobe\.com|adobe-addons\.com)", allow_origins=["http://localhost:5180","http://127.0.0.1:5180","http://localhost:8765","http://127.0.0.1:8765","http://127.0.0.1:5241","https://localhost:5241"], allow_methods=["*"], allow_headers=["*"])
 app.mount("/renders", StaticFiles(directory=str(RENDER_DIR)), name="renders")
 
 # Target catalogue: real platform formats, described the way a designer would.

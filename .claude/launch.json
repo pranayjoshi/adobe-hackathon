@@ -93,6 +93,29 @@
         "BLIND_EVAL_DIR": "work/final-eval",
         "BLIND_EVAL_ENGINES": "final,gaurav,merged"
       }
+    },
+    {
+      "name": "final-viewer",
+      "runtimeExecutable": ".venv/bin/uvicorn",
+      "runtimeArgs": [
+        "service.app:app",
+        "--port",
+        "8766"
+      ],
+      "port": 8766,
+      "autoPort": false
+    },
+    {
+      "name": "express-addon",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": [
+        "--prefix",
+        "express_addon",
+        "run",
+        "dev"
+      ],
+      "port": 5241,
+      "autoPort": false
     }
   ]
 }
