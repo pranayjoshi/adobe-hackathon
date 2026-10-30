@@ -11,8 +11,7 @@ The approach (see docs/chameleon-end-to-end-build-plan.md):
 
 from typing import Any
 
-from engine.pipeline import best
-
 
 def resize(source: dict[str, Any], target_canvas: dict[str, Any]) -> dict[str, Any]:
-    return best(source, {"width": int(target_canvas["width"]), "height": int(target_canvas["height"])})
+    from final.resize import resize as final_resize  # the submission engine; see final/README.md
+    return final_resize(source, target_canvas)

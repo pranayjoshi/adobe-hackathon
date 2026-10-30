@@ -9,3 +9,6 @@ __pycache__
 *.pyc
 .env
 .env.*
+brand_kit/assets/crello
+brand_kit/fonts/crello
+brand_kit/fonts/crello-fonts.json

@@ -1,6 +1,7 @@
 """Independent visible-geometry and composited contrast diagnostics."""
 from __future__ import annotations
 import copy, hashlib, json, math, os, re, subprocess, sys, tempfile, threading, time
+from functools import lru_cache
 from pathlib import Path
 from PIL import Image, ImageColor, ImageDraw, ImageOps, ImageStat
 from .canonical import ASSETS_DIR, FONTS_DIR, ROOT, Box, element_box, rotated_extent, union_all
@@ -13,7 +14,7 @@ _ESTIMATES: dict[str, Image.Image] = {}
 _RESOURCE_BYTES = {}
 _DECODED: dict[tuple, Image.Image] = {}
 _DECODED_KEEP = 16
-_KIT: list[tuple[str, str]] = []
+_KIT: dict[Path, list[Path]] = {}
 VERIFICATION_PROFILE = 'official-exact-v1'
 
 def _file_hash(path):
@@ -27,12 +28,12 @@ def _file_hash(path):
 _PLACEHOLDER_WARNING=re.compile(r"^Missing asset '([^']*)' for element '[^']*' - rendered a placeholder\.$")
 
 def _kit_hashes():
-    """The fonts' and renderer's identities, read once per process: neither changes during a run."""
-    if not _KIT:
+    """The fonts' and renderer's identities. The list of files is read once per folder; each file is still checked."""
+    if FONTS_DIR not in _KIT:
         paths=[p for p in FONTS_DIR.rglob('*') if p.is_file() and p.suffix.lower() in ('.ttf','.otf','.json')]
         paths+=list((ROOT/'renderer'/'converter').glob('*.py'))+[ROOT/'engine'/'render_worker.py']
-        _KIT.extend((str(p.relative_to(ROOT)) if p.is_relative_to(ROOT) else str(p),_file_hash(p)) for p in sorted(set(paths)))
-    return _KIT
+        _KIT[FONTS_DIR]=sorted(set(paths))
+    return [(str(p.relative_to(ROOT)) if p.is_relative_to(ROOT) else str(p),_file_hash(p)) for p in _KIT[FONTS_DIR]]
 
 def resource_fingerprint(design, *, allow_missing=False):
     """Include actual images, all available font faces and renderer implementation."""
@@ -40,8 +41,8 @@ def resource_fingerprint(design, *, allow_missing=False):
     for e in design.get('elements',[]):
         if e.get('type')!='image':continue
         asset=str(e.get('asset_id',''))
-        path=(ASSETS_DIR/asset).resolve()
-        if not path.is_relative_to(ASSETS_DIR.resolve()):
+        path,inside=_asset_path(ASSETS_DIR,asset)
+        if not inside:
             raise ValueError('Missing or unsafe image asset: '+asset)
         if not path.is_file():
             if not allow_missing:raise ValueError('Missing or unsafe image asset: '+asset)
@@ -193,6 +194,12 @@ def color(value, opacity=1):
     except (ValueError,TypeError): r,g,b,a=0,0,0,255
     return r,g,b,round(a*max(0,min(1,float(opacity))))
 
+@lru_cache(maxsize=4096)
+def _asset_path(assets_dir,asset):
+    """An asset id's real path, and whether it stays inside the assets folder."""
+    path=(assets_dir/asset).resolve()
+    return path,path.is_relative_to(assets_dir.resolve())
+
 def _decoded(path):
     """An image's RGBA pixels, decoded once while its bytes stay the same. Callers must not edit it."""
     key=(str(path),_file_hash(path))
@@ -213,8 +220,8 @@ def composite(design, size=640):
     resources=[]
     for e in design['elements']:
         if e['type']=='image':
-            p=(ASSETS_DIR/str(e.get('asset_id',''))).resolve()
-            resources.append((str(p),_file_hash(p) if p.is_relative_to(ASSETS_DIR.resolve()) and p.is_file() else 'missing'))
+            p,inside=_asset_path(ASSETS_DIR,str(e.get('asset_id','')))
+            resources.append((str(p),_file_hash(p) if inside and p.is_file() else 'missing'))
     key=json.dumps({'canvas':design['canvas'],'elements':[e for e in design['elements'] if e['type']!='text'],'size':size,'resources':resources},sort_keys=True)
     if key in _ESTIMATES:return _ESTIMATES[key].copy(),scale
     canvas=Image.new('RGBA',(max(1,round(cw*scale)),max(1,round(ch*scale))),'white')
@@ -225,8 +232,8 @@ def composite(design, size=640):
             raise ValueError('Diagnostic layer exceeds allocation limit: '+str(e.get('id')))
         w,h=max(1,round(e['width']*scale)),max(1,round(e['height']*scale))
         if e['type']=='image':
-            path=(ASSETS_DIR/str(e.get('asset_id',''))).resolve()
-            if path.is_relative_to(ASSETS_DIR.resolve()) and path.is_file():
+            path,inside=_asset_path(ASSETS_DIR,str(e.get('asset_id','')))
+            if inside and path.is_file():
                 im=_decoded(path)
                 if e.get('fit')=='cover':layer=ImageOps.fit(im,(w,h))
                 elif e.get('fit')=='fill':layer=im.resize((w,h))

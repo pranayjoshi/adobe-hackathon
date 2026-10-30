@@ -227,7 +227,7 @@ class GenerateRequest(BaseModel):
     def valid_options(cls,value):
         if not isinstance(value,dict):raise ValueError('options must be an object')
         boolean={'solver','render','refine','retrieval','vlm','roles','pixel_diagnostics','learned_edit','learned_retarget'}
-        choices={'controller_mode':{'legacy_batch','single','single_restart','small_beam'},
+        choices={'engine':{'final','legacy'},'controller_mode':{'legacy_batch','single','single_restart','small_beam'},
                  'solver_mode':{'legacy','joint'},'visual_judge':{'off','openjev'},
                  'group_policies':{'legacy','hierarchical'},'role_mode':{'legacy','shadow','calibrated'},
                  'proposal_portfolio':{'legacy','diverse'},'retrieval_version':{'legacy','fit_aware'},
@@ -388,9 +388,14 @@ def _execute(req, rid, *, cancelled=None, target_offset=0, persist=True,owner=No
                 repo.update_job(rid,{'active_preview':preview},owner)
                 repo.append_event(rid,{'type':'preview_ready','target_index':index,'revision_hash':hashed,'render':event['render']},owner)
         try:
-            cands=generate(req.source,tgt,req.emphasis,req.top_k,analysis=A,locks=req.locks,
-                options=req.options,all_candidates=req.all_candidates,progress_callback=progress,
-                artifact_callback=artifact,cancelled=cancelled)
+            if req.options.get('engine')=='final' and not req.locks:
+                from final.resize import ranked
+                cands=ranked(req.source,tgt)[0][:req.top_k]
+                if not cands:raise NoValidDesign('No layout could be generated')
+            else:
+                cands=generate(req.source,tgt,req.emphasis,req.top_k,analysis=A,locks=req.locks,
+                    options=req.options,all_candidates=req.all_candidates,progress_callback=progress,
+                    artifact_callback=artifact,cancelled=cancelled)
         except NoValidDesign as exc:
             results.append({'target':{**tgt,'label':target.label,'id':target.id},'candidates':[],
                 'baseline':{'design':uniform_stretch(req.source,tgt),'render':None,'checks':[]},
@@ -476,7 +481,7 @@ def _supervise_job(req,rid,owner,repo):
     gets 15 seconds, then the entire owned group is terminated and reaped.
     """
     folder=repo.root/rid;folder.mkdir(parents=True,exist_ok=True)
-    deadline=time.monotonic()+len(req.targets)*max(45,float(req.options.get('controller_seconds',12))+20)
+    deadline=time.monotonic()+len(req.targets)*max(180 if req.options.get('engine')=='final' else 45,float(req.options.get('controller_seconds',12))+20)
     cancelled_at=None;reason=None
     with (folder/'worker.log').open('ab') as log:
         process=subprocess.Popen([sys.executable,'-m','service.job_worker',rid,owner,str(repo.root)],

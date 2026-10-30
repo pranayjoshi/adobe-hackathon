@@ -81,8 +81,12 @@ def element_box(el: dict[str, Any]) -> Box:
 def rotated_extent(el: dict[str, Any]) -> Box:
     """Axis-aligned box that contains both the unrotated element box and its
     rotated footprint (rotation is about the element centre)."""
-    b = element_box(el)
-    rot = float(el.get("rotation") or 0.0)
+    return _extent(float(el["x"]), float(el["y"]), float(el["width"]), float(el["height"]), float(el.get("rotation") or 0.0))
+
+
+@lru_cache(maxsize=65536)
+def _extent(x: float, y: float, w: float, h: float, rot: float) -> Box:
+    b = Box(x, y, w, h)
     if abs(rot) < 1e-6:
         return b
     t = math.radians(rot)

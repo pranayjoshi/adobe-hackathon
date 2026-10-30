@@ -29,7 +29,7 @@ $('generate').onclick=async()=>{
   try{
     say('Generating…');
     backendProfile=await readResponse(await fetch(base()+'/api/express/capabilities'));
-    const result=await readResponse(await fetch(base()+'/api/generate',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({source,targets:[{width:Number($('width').value),height:Number($('height').value)}],top_k:3})}));
+    const result=await readResponse(await fetch(base()+'/api/generate',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({source,targets:[{width:Number($('width').value),height:Number($('height').value)}],top_k:3,options:{engine:'final'}})}));
     if(requestRevision!==selectRevision)throw new Error('Source or target changed during generation. Generate the current design again.');
     candidates=result.results[0].candidates;
     $('candidate').replaceChildren(...candidates.map((candidate,index)=>{const option=document.createElement('option');option.value=String(index);option.textContent=candidate.name;return option;}));

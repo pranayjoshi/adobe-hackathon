@@ -111,19 +111,28 @@ def _uniform(source, target):
     return comply(source, {'canvas': target, 'elements': elements})
 
 
-def resize_with_report(source: dict[str, Any], target_canvas: dict[str, Any]) -> dict[str, Any]:
-    target = {'width': int(target_canvas['width']), 'height': int(target_canvas['height'])}
+def ranked(source: dict[str, Any], target: dict[str, Any]) -> tuple[list[dict[str, Any]], int]:
+    """The gate's survivors, the judge's favourite first, and how many layouts were generated."""
     with ThreadPoolExecutor(1) as helper:   # his engine runs in its own process: ask it while ours works
         theirs = helper.submit(gaurav.candidates, source, target)
         ours = _shortlist(source, target)
         pool = ours + _foreign(source, target, theirs.result())
     if not pool:
-        return {'design': _uniform(source, target), 'template': 'uniform', 'candidates': 0, 'failed_checks': None}
+        return [], 0
     survivors = gate(source, pool)
     scored = [(prefs.score(prefs.layout_features(source, r) + pixels.features(r['design'])), i, r)
               for i, r in enumerate(survivors)]
-    _, _, top = max(scored, key=lambda t: (t[0], -t[1]))
-    return {'design': copy.deepcopy(top['design']), 'template': top['template'], 'candidates': len(pool),
+    scored.sort(key=lambda t: (-t[0], t[1]))
+    return [r for _, _, r in scored], len(pool)
+
+
+def resize_with_report(source: dict[str, Any], target_canvas: dict[str, Any]) -> dict[str, Any]:
+    target = {'width': int(target_canvas['width']), 'height': int(target_canvas['height'])}
+    survivors, generated = ranked(source, target)
+    if not survivors:
+        return {'design': _uniform(source, target), 'template': 'uniform', 'candidates': 0, 'failed_checks': None}
+    top = survivors[0]
+    return {'design': copy.deepcopy(top['design']), 'template': top['template'], 'candidates': generated,
             'survivors': len(survivors), 'failed_checks': failed_checks(top)}
 
 

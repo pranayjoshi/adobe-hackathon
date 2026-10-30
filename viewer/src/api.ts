@@ -27,7 +27,7 @@ export const api = {
   analyze: (design: Design, groupPolicies:'legacy'|'hierarchical'='legacy', signal?:AbortSignal) =>
     req<{ analysis: Analysis; render: string | null; warnings: string[]; preview_verified?: boolean }>("/api/analyze", { design, group_policies:groupPolicies },signal),
   generate: async (source: Design, targets: Target[], emphasis: string, locks: Record<string,Record<string,number>> = {}, allCandidates = false, options: Record<string,boolean|string|number> = {}, onProgress?: (id:string, progress:number,job:JobUpdate)=>void, signal?:AbortSignal, analysisOverrides:AnalysisOverrides={roles:{},group_modes:{}}) => {
-    const started=await req<{id:string}>("/api/jobs",{ source, targets, emphasis, locks, top_k:allCandidates?36:3, all_candidates:allCandidates, options, analysis_overrides:analysisOverrides, idempotency_key:crypto.randomUUID() },signal);
+    const started=await req<{id:string}>("/api/jobs",{ source, targets, emphasis, locks, top_k:allCandidates?36:3, all_candidates:allCandidates, options:{engine:'final',...options}, analysis_overrides:analysisOverrides, idempotency_key:crypto.randomUUID() },signal);
     let after=-1;
     for (;;) {
       const job=await req<JobUpdate>(`/api/jobs/${started.id}?after_event=${after}`,undefined,signal);
