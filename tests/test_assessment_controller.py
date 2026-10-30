@@ -78,6 +78,51 @@ class AssessmentTests(unittest.TestCase):
         with patch('engine.quality.Image.new',side_effect=bounded_new):
             with self.assertRaisesRegex(ValueError,'allocation limit'):quality.composite(design)
 
+    def test_missing_asset_preview_stays_unverified(self):
+        design={'canvas':{'width':20,'height':10},'elements':[
+            {'id':'mark','type':'image','asset_id':'does-not-exist.png','x':0,'y':0,'width':8,'height':8,'z_index':1}]}
+        quality._CACHE.clear()
+        official=quality.verify_design(design)
+        self.assertFalse(official['verified']);self.assertIsNone(official['image'])
+        self.assertIn('does-not-exist.png',official['error'])
+        warning="Missing asset 'does-not-exist.png' for element 'mark' - rendered a placeholder."
+        def fake_worker(command,**kwargs):
+            Image.new('RGB',(20,10),'red').save(command[4])
+            Path(command[6]).write_text(json.dumps({'warnings':[warning]}))
+            return SimpleNamespace(returncode=0)
+        with patch('engine.quality.subprocess.run',side_effect=fake_worker):
+            preview=quality.unverified_missing_asset_preview(design)
+        self.assertEqual(preview['status'],'unverified');self.assertFalse(preview['verified']);self.assertFalse(preview['counts_as_success'])
+        self.assertEqual(preview['image'].size,(20,10));self.assertFalse(quality._CACHE)
+        def extra_warning(command,**kwargs):
+            Image.new('RGB',(20,10),'red').save(command[4])
+            Path(command[6]).write_text(json.dumps({'warnings':[warning,'Original font face unavailable: Example']}))
+            return SimpleNamespace(returncode=0)
+        with patch('engine.quality.subprocess.run',side_effect=extra_warning):
+            refused=quality.unverified_missing_asset_preview(design)
+        self.assertIsNone(refused['image']);self.assertFalse(refused['verified'])
+
+    def test_analyze_shows_missing_asset_source_without_calling_it_verified(self):
+        from fastapi.testclient import TestClient
+        from service.app import app
+        design={'canvas':{'width':20,'height':10},'elements':[
+            {'id':'mark','type':'image','asset_id':'does-not-exist.png','x':0,'y':0,'width':8,'height':8,'z_index':1,'fit':'contain'}]}
+        warning="Missing asset 'does-not-exist.png' for element 'mark' - rendered a placeholder."
+        def fake_worker(command,**kwargs):
+            Image.new('RGB',(20,10),'red').save(command[4])
+            Path(command[6]).write_text(json.dumps({'warnings':[warning]}))
+            return SimpleNamespace(returncode=0)
+        with tempfile.TemporaryDirectory() as folder:
+            with patch('service.app.RENDER_DIR',Path(folder)),patch('engine.quality.subprocess.run',side_effect=fake_worker):
+                response=TestClient(app).post('/api/analyze',json={'design':design})
+            self.assertEqual(response.status_code,200,response.text)
+            body=response.json()
+            self.assertFalse(body['preview_verified']);self.assertTrue(body['render'].startswith('/renders/unverified-'))
+            self.assertIn('does-not-exist.png',' '.join(body['warnings']))
+            saved=list(Path(folder).glob('unverified-*.json'));self.assertEqual(len(saved),1)
+            meta=json.loads(saved[0].read_text())
+            self.assertFalse(meta['verified']);self.assertFalse(meta['counts_as_success']);self.assertNotIn('image',meta)
+
     def test_missing_rich_face_cannot_be_verified_with_font_fallback(self):
         from renderer.converter.convert import font_face_warnings
         class Fonts:
