@@ -127,3 +127,16 @@ class PreferenceExportTests(unittest.TestCase):
             self.assertEqual(0,report['counts'].get('exported',0));self.assertEqual(2,report['counts']['reviewed_visual_panel'])
             (repo.root/'QA_ONLY').write_text('agent UI verification only')
             with self.assertRaisesRegex(ValueError,'QA_ONLY'):export_preferences(repo.root,Path(td)/'forbidden.jsonl')
+
+    def test_training_corpus_exporters_refuse_qa_workspaces(self):
+        from training.edit_dataset import collect
+        from training.export import export
+        from training.families import mine
+        from training.perturb import run
+        with tempfile.TemporaryDirectory() as td:
+            corpus=Path(td)/'workspace';corpus.mkdir();(corpus/'QA_ONLY').write_text('agent UI verification only')
+            atomic_json(corpus/'design.json',{'canvas':{'width':10,'height':10},'elements':[{'id':'t','type':'text'}]})
+            for call in (lambda:export(corpus,Path(td)/'export'),lambda:collect(corpus,Path(td)/'demos.jsonl',[{'width':5,'height':5}]),
+                         lambda:mine(corpus),lambda:run(corpus,Path(td)/'perturb')):
+                with self.assertRaisesRegex(ValueError,'QA_ONLY'):call()
+            self.assertFalse((Path(td)/'export').exists());self.assertFalse((Path(td)/'demos.jsonl').exists())
