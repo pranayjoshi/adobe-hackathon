@@ -21,11 +21,11 @@ async function req<T>(path: string, body?: unknown, signal?:AbortSignal): Promis
 }
 
 export const api = {
-  health: () => req<{ ok: boolean; renderer: boolean; text_metrics: boolean }>("/api/health"),
+  health: () => req<{ ok: boolean; renderer: boolean; text_metrics: boolean; learned_layouts?: boolean }>("/api/health"),
   samples: () => req<Sample[]>("/api/samples"),
   presets: () => req<Preset[]>("/api/presets"),
   analyze: (design: Design, groupPolicies:'legacy'|'hierarchical'='legacy', signal?:AbortSignal) =>
-    req<{ analysis: Analysis; render: string | null; warnings: string[] }>("/api/analyze", { design, group_policies:groupPolicies },signal),
+    req<{ analysis: Analysis; render: string | null; warnings: string[]; preview_verified?: boolean }>("/api/analyze", { design, group_policies:groupPolicies },signal),
   generate: async (source: Design, targets: Target[], emphasis: string, locks: Record<string,Record<string,number>> = {}, allCandidates = false, options: Record<string,boolean|string|number> = {}, onProgress?: (id:string, progress:number,job:JobUpdate)=>void, signal?:AbortSignal, analysisOverrides:AnalysisOverrides={roles:{},group_modes:{}}) => {
     const started=await req<{id:string}>("/api/jobs",{ source, targets, emphasis, locks, top_k:allCandidates?36:3, all_candidates:allCandidates, options, analysis_overrides:analysisOverrides, idempotency_key:crypto.randomUUID() },signal);
     let after=-1;

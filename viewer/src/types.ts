@@ -95,6 +95,7 @@ export type Candidate = {
   overlay: (Box & { id: string })[];
   render: string | null;
   render_warnings: string[];
+  preview_verified?: boolean;
 };
 
 export type TargetResult = {
@@ -102,6 +103,7 @@ export type TargetResult = {
   candidates: Candidate[];
   baseline: { design: Design; render: string | null; checks: Check[] };
   elapsed_ms: number;
+  status?: string;
 };
 
 export type GenerateResponse = { run_id?: string; analysis: Analysis; results: TargetResult[]; elapsed_ms: number };
