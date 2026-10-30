@@ -14,6 +14,8 @@ type Props = {
   sourceId: string | null;
   source: Design | null;
   sourceRender: string | null;
+  sourceWarnings: string[];
+  sourcePreviewVerified: boolean | null;
   analysis: Analysis | null;
   analysisOverrides: AnalysisOverrides;
   onAnalysisOverrides: (value:AnalysisOverrides)=>void;
@@ -140,6 +142,11 @@ export function Sidebar(p: Props) {
                 <div className="flex justify-center">
                   <Preview key={p.sourceRender ?? "none"} src={p.sourceRender} width={p.source.canvas.width} height={p.source.canvas.height} maxHeight={220} className="w-full" />
                 </div>
+                {p.sourcePreviewVerified === false && (
+                  <p className="mt-2 text-[11px] leading-relaxed text-amber-300" title={p.sourceWarnings.join(" ")}>
+                    Unverified preview. A required original image is missing, so the renderer drew a placeholder.
+                  </p>
+                )}
                 <div className="mt-2.5 flex items-center justify-between text-xs">
                   <span className="font-mono text-zinc-400">
                     {p.source.canvas.width}×{p.source.canvas.height}
