@@ -111,10 +111,81 @@ def _render(design: dict[str, Any]) -> tuple[str | None, list[str]]:
     return '/renders/'+path.name,result.get('warnings',[])
 
 
-def _preview_verification(design,url):
-    from engine.quality import resource_fingerprint,VERIFICATION_PROFILE
-    return {'verified':url is not None,'design_hash':design_hash(design),
-            'resource_hash':resource_fingerprint(design) if url else None,'profile':VERIFICATION_PROFILE}
+def _unverified_source_preview(design: dict[str, Any]) -> tuple[str | None, list[str]]:
+    """Show a source whose only official failure is a missing original image.
+
+    The file is a display placeholder. Its sidecar stays unverified, so the
+    official cache will not treat those pixels as a successful render.
+    """
+    from engine.quality import resource_fingerprint, unverified_missing_asset_preview
+    try:
+        resources=resource_fingerprint(design, allow_missing=True)
+    except (ValueError, OSError) as exc:
+        return None, [str(exc)]
+    identity=design_hash(design)
+    key=hashlib.sha256(('unverified-missing-asset-v1'+identity+resources).encode()).hexdigest()[:24]
+    path=RENDER_DIR/('unverified-'+key+'.png')
+    sidecar=path.with_suffix('.json')
+    if path.is_file() and sidecar.is_file():
+        try:
+            metadata=json.loads(sidecar.read_text())
+            if metadata.get('verified') is False and metadata.get('counts_as_success') is False and metadata.get('design_hash')==identity and metadata.get('resource_hash')==resources:
+                from PIL import Image
+                with Image.open(path) as image:
+                    if image.size==(int(design['canvas']['width']),int(design['canvas']['height'])):
+                        image.verify();return '/renders/'+path.name, list(metadata.get('warnings') or [])
+        except (OSError, ValueError, KeyError):
+            pass
+    result=unverified_missing_asset_preview(design)
+    image=result.pop('image', None)
+    if image is None or result.get('verified') or result.get('counts_as_success') is not False:
+        return None, [result.get('error', 'Official preview unavailable')]
+    with tempfile.NamedTemporaryFile(dir=RENDER_DIR, suffix='.png', delete=False) as handle:
+        temp=Path(handle.name)
+    try:
+        image.save(temp, format='PNG');temp.replace(path)
+    finally:
+        temp.unlink(missing_ok=True)
+    with tempfile.NamedTemporaryFile(dir=RENDER_DIR, suffix='.json', mode='w', delete=False) as handle:
+        json.dump(result, handle, allow_nan=False);pending=Path(handle.name)
+    try:
+        pending.replace(sidecar)
+    finally:
+        pending.unlink(missing_ok=True)
+    return '/renders/'+path.name, list(result.get('warnings') or [])
+
+
+def _missing_asset_failure(warnings: list[str]) -> bool:
+    return bool(warnings) and all(str(item).startswith(('Missing or unsafe image asset:', "Missing asset '")) for item in warnings)
+
+
+def _display_render(design: dict[str, Any]) -> tuple[str | None, list[str], bool]:
+    """Official preview when it verifies; otherwise a labeled placeholder for a missing image.
+
+    A placeholder URL is never verified. Other renderer failures stay hidden.
+    """
+    url, warnings = _render(design)
+    if url:
+        return url, warnings, True
+    if _missing_asset_failure(warnings):
+        diagnostic, diagnostic_warnings = _unverified_source_preview(design)
+        if diagnostic:
+            return diagnostic, diagnostic_warnings, False
+    return None, warnings, False
+
+
+def _preview_verification(design, url, verified=None):
+    from engine.quality import resource_fingerprint, VERIFICATION_PROFILE
+    if verified is None:
+        verified = url is not None
+    resource = None
+    if url:
+        try:
+            resource = resource_fingerprint(design, allow_missing=not verified)
+        except (ValueError, OSError):
+            verified = False
+    return {'verified': bool(verified and url), 'design_hash': design_hash(design),
+            'resource_hash': resource, 'profile': VERIFICATION_PROFILE if verified else 'unverified-missing-asset-v1'}
 
 
 class Target(BaseModel):
@@ -155,7 +226,7 @@ class GenerateRequest(BaseModel):
     @classmethod
     def valid_options(cls,value):
         if not isinstance(value,dict):raise ValueError('options must be an object')
-        boolean={'solver','render','refine','retrieval','vlm','roles','pixel_diagnostics','learned_edit'}
+        boolean={'solver','render','refine','retrieval','vlm','roles','pixel_diagnostics','learned_edit','learned_retarget'}
         choices={'controller_mode':{'legacy_batch','single','single_restart','small_beam'},
                  'solver_mode':{'legacy','joint'},'visual_judge':{'off','openjev'},
                  'group_policies':{'legacy','hierarchical'},'role_mode':{'legacy','shadow','calibrated'},
@@ -230,7 +301,9 @@ def _check_source(source: dict[str, Any]) -> None:
 
 @app.get("/api/health")
 def health() -> dict[str, Any]:
-    return {"ok": True, "renderer": render_design_to_png is not None, "text_metrics": renderer_available()}
+    from engine.retarget.propose import available as learned_layouts
+    return {"ok": True, "renderer": render_design_to_png is not None, "text_metrics": renderer_available(),
+            "learned_layouts": learned_layouts()}
 
 
 @app.get("/api/presets")
@@ -257,7 +330,12 @@ def samples() -> list[dict[str, Any]]:
 def analyze_design(req: DesignRequest) -> dict[str, Any]:
     _check_source(req.design)
     url, warnings = _render(req.design)
-    return {"analysis": analyze(req.design,group_policies=req.group_policies).to_dict(), "render": url, "warnings": warnings}
+    preview_verified=url is not None
+    if url is None:
+        diagnostic, diagnostic_warnings=_unverified_source_preview(req.design)
+        if diagnostic:
+            url, warnings, preview_verified=diagnostic, diagnostic_warnings, False
+    return {"analysis": analyze(req.design,group_policies=req.group_policies).to_dict(), "render": url, "warnings": warnings, "preview_verified": preview_verified}
 
 
 @app.post("/api/render")
@@ -324,20 +402,27 @@ def _execute(req, rid, *, cancelled=None, target_offset=0, persist=True,owner=No
             candidate['revision_hash']=design_hash(candidate['design'])
             existing=repo.revision(rid,index,candidate['revision_hash']) or {}
             url=existing.get('render');warnings=[]
-            if not url:url,warnings=_render(candidate['design'])
-            usable=bool(url is not None and candidate['valid'] and candidate.get('rubric',{}).get('gate',True))
-            candidate.update(render=url,render_warnings=warnings,preview_verified=url is not None,exportable=usable,
-                             verification={**candidate.get('verification',{}),**_preview_verification(candidate['design'],url)})
+            if url:verified=bool(existing.get('verified', True))
+            else:url,warnings,verified=_display_render(candidate['design'])
+            usable=bool(verified and candidate['valid'] and candidate.get('rubric',{}).get('gate',True))
+            candidate.update(render=url,render_warnings=warnings,preview_verified=verified,exportable=usable,
+                             verification={**candidate.get('verification',{}),**_preview_verification(candidate['design'],url,verified)})
             saved={**existing,'design':candidate['design'],'candidate':candidate,'render':url,
-                   'accepted':usable and not verified_candidates,'verified':url is not None,
+                   'accepted':usable and not verified_candidates,'verified':verified,
                    'resource_hash':candidate['verification'].get('resource_hash')}
             repo.put_revision(rid,index,saved,activate=usable and not verified_candidates,owner=owner)
             (verified_candidates if usable else failed_candidates).append(candidate)
         cands=verified_candidates
-        baseline=uniform_stretch(req.source,tgt);baseline_url,baseline_warnings=_render(baseline)
+        status='done' if cands else 'no_verified_output'
+        if not cands:
+            visible=[c for c in failed_candidates if c.get('render') and c.get('preview_verified') is False and _missing_asset_failure(c.get('render_warnings') or [])]
+            if visible:
+                cands=visible
+                status='unverified_missing_asset'
+        baseline=uniform_stretch(req.source,tgt);baseline_url,baseline_warnings,baseline_verified=_display_render(baseline)
         results.append({'target':{**tgt,'label':target.label,'id':target.id},'candidates':cands,
-            'baseline':{'design':baseline,'render':baseline_url,'checks':validate(req.source,baseline),'warnings':baseline_warnings},
-            'elapsed_ms':round((time.monotonic()-tg0)*1000),'status':'done' if cands else 'no_verified_output',
+            'baseline':{'design':baseline,'render':baseline_url,'checks':validate(req.source,baseline),'warnings':baseline_warnings,'preview_verified':baseline_verified},
+            'elapsed_ms':round((time.monotonic()-tg0)*1000),'status':status,
             'failed_candidates':failed_candidates})
     response={'analysis':A.to_dict(),'results':results,'elapsed_ms':round((time.monotonic()-t0)*1000),'run_id':rid}
     if persist:save_run(req.model_dump(),response,rid,owner)
