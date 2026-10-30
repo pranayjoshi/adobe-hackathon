@@ -98,6 +98,8 @@ def run(corpus, out, formats=None, seed=7, limit=None):
     from engine.pipeline import generate
     from training.reward import assess
     from training.export import split_of
+    from training.families import refuse_qa_corpus
+    refuse_qa_corpus(corpus)
     out.mkdir(parents=True, exist_ok=True); rng = random.Random(seed); pairs = []; stats = defaultdict(lambda: {'n': 0, 'flagged': 0, 'drop': 0.0, 'ranked_lower': 0})
     targets = formats or [(w, h) for _, w, h in CATALOGUE]
     for path in sorted(corpus.glob('*.json'))[:limit]:
