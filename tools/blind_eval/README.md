@@ -25,7 +25,7 @@ The A/B/C order is shuffled for each task by a seeded draw. The tasks come in on
 .venv/bin/python -m tools.blind_eval.build --gaurav ../chameleon-competitors/gaurav/chameleon
 ```
 
-Every stage resumes and skips work already done. `--publish` renders and publishes only the tasks every engine has finished. The app picks up a new `pairs.json` without a restart, so judging can start while the engines are still running.
+Every stage resumes and skips work already done. Each merged run records a fingerprint of `merged/*.py` and its switches (`MERGED_GROWTH`, `MERGED_SCALE_SPACING`), so a run from other code or settings counts as unfinished and is redone. `--publish` renders and publishes only the tasks every engine has finished. The app picks up a new `pairs.json` without a restart, so judging can start while the engines are still running.
 
 ## Judge
 
@@ -37,7 +37,8 @@ Open `http://<this-mac's-LAN-IP>:8790` (it works from any machine on the same ne
 
 - Keys: Pranay `Q W E R T`, Gaurav `A S D F G`, Kavya `Z X C V B`, in the order A best, B best, C best, no clear winner, all bad. Pressing the same choice again takes the vote back. `←` `→` move between tasks, and `N` goes to the next unfinished one.
 - The optional note is saved with the next vote anyone casts.
-- Blind mode is on by default. Turning it off shows the engine names. Every vote records whether it was cast blind.
+- Blind mode is on whenever the page loads; it is never remembered, so a browser once used to check names cannot show them to the next judge. Turning it off shows each option's engine ("Pranay's engine", "Gaurav's engine", "Merged engine") under an orange banner, and every vote records whether it was cast blind.
+- When two options show the same picture (the merged engine often keeps our layout), the second is marked "same picture as A". A vote for either credits both engines.
 - The **Results** tab reveals the names. It shows how often each engine was picked as best, per judge, per target size and per source orientation, plus the 2-of-3 majority and Fleiss' κ (agreement is on the picture picked). It also links a CSV of every vote.
 
 Votes are stored in `work/blind-eval/votes.sqlite`. Set `BLIND_EVAL_DIR` to serve a different study folder.

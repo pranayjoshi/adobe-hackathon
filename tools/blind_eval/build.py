@@ -25,10 +25,18 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT))
 from lite.app import PRESETS, SAME_SHAPE  # noqa: E402  the 14 sizes the apps offer
+from tools.blind_eval.versions import code_fingerprint  # noqa: E402
 
 WORK = ROOT / 'work/blind-eval'
 ENGINES = ('pranay', 'gaurav', 'merged')   # run by worker.py, compared by the judges
 SEED = 'chameleon-blind-v1'
+
+
+def current(name, path):
+    """A run is current when it exists and, for the merged engine, came from today's code."""
+    if not path.exists():
+        return False
+    return name != 'merged' or json.loads(path.read_text()).get('code') == code_fingerprint()
 
 
 def digest(*parts):
@@ -93,7 +101,7 @@ def run(tasks, roots, shards):
             continue
         out = WORK / 'runs' / name
         out.mkdir(parents=True, exist_ok=True)
-        todo = [t for t in tasks if not (out / f"{t['id']}.json").exists()]
+        todo = [t for t in tasks if not current(name, out / f"{t['id']}.json")]
         for i in range(shards[name]):
             part = [{**t, 'source': source_of(t['sample'])} for t in todo[i::shards[name]]]
             if not part:
@@ -193,6 +201,8 @@ def verify(sample=40):
             if not meta['ok']:
                 continue
             d = rec['design']
+            if name == 'merged' and rec.get('code') != code_fingerprint():
+                problems.append(f"{t['id']}/{name}: run from another version of merged/")
             if fingerprint(d) != meta['layout'] or png.with_suffix('.layout').read_text() != meta['layout']:
                 problems.append(f"{t['id']}/{name}: picture not drawn from this layout")
             if hashlib.sha256(png.read_bytes()).hexdigest()[:16] != meta['render']:
@@ -233,7 +243,7 @@ if __name__ == '__main__':
     a = ap.parse_args()
     tasks = select(a.count)
     if a.publish:
-        tasks = [t for t in tasks if all((WORK / 'runs' / n / f"{t['id']}.json").exists() for n in ENGINES)]
+        tasks = [t for t in tasks if all(current(n, WORK / 'runs' / n / f"{t['id']}.json") for n in ENGINES)]
     else:
         # The merged engine runs on our engine snapshot, with merged/ from this repository.
         run(tasks, {'pranay': a.pranay.resolve(), 'gaurav': a.gaurav.resolve(), 'merged': a.pranay.resolve()},

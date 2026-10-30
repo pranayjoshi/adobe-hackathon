@@ -104,11 +104,17 @@ def winner_of(pair, choice):
     return ','.join(e for e in ENGINES if picked and pair['engines'][e]['render'] == picked)
 
 
-def letter_of(pair, winner):
-    """The option now showing the picture a stored vote picked (votes outlive option order)."""
+def letter_of(pair, winner, choice=None):
+    """The option now showing the picture a stored vote picked (votes outlive option order).
+
+    When two options show the same picture, the letter the judge pressed is kept if it
+    still shows that picture.
+    """
     if winner in ('none', 'all-bad'):
         return winner
     names = winner.split(',')
+    if choice in OPTIONS and pair['options'][choice] in names:
+        return choice
     return next((side for side in OPTIONS if pair['options'][side] in names), None)
 
 
@@ -146,11 +152,14 @@ def pair(pair_id: str, reveal: bool = False):
         raise HTTPException(404, 'Pair not found')
     s = SAMPLES[p['sample']]
     with db() as con:
-        votes = {j: letter_of(p, w) for j, w in con.execute('select judge, winner from votes where pair=?', (pair_id,))}
+        votes = {j: letter_of(p, w, c) for j, w, c in con.execute('select judge, winner, choice from votes where pair=?', (pair_id,))}
         note = con.execute("select note from votes where pair=? and note != '' order by at desc", (pair_id,)).fetchone()
     def picture(side):
         meta = p['engines'][p['options'][side]]
-        return {'ok': meta['ok'], 'img': f"/img/{pair_id}/{side}?v={meta['render']}"}
+        # Identical pictures are flagged by letter (never by engine), so judges know a vote
+        # for either counts for both.
+        same = next((o for o in OPTIONS if o < side and meta['ok'] and p['engines'][p['options'][o]]['render'] == meta['render']), None)
+        return {'ok': meta['ok'], 'img': f"/img/{pair_id}/{side}?v={meta['render']}", 'same': same}
     out = {'id': pair_id, 'title': s['title'], 'source_size': [s['width'], s['height']],
            'target': {'label': p['label'], **p['target_canvas']},
            'sides': {side: picture(side) for side in OPTIONS},
@@ -287,9 +296,9 @@ def export():
     w.writerow(['judge', 'pair', 'sample', 'target', 'A', 'B', 'C', 'choice', 'winner', 'note', 'seconds', 'at', 'blind'])
     pairs()
     with db() as con:
-        for judge, pair_id, _, winner, note, secs, at, blind in con.execute('select * from votes order by at'):
+        for judge, pair_id, choice, winner, note, secs, at, blind in con.execute('select * from votes order by at'):
             p = BY_ID[pair_id]
             o = p['options']
-            w.writerow([judge, pair_id, p['sample'], p['label'], o['A'], o['B'], o['C'], letter_of(p, winner), winner, note, secs, at, blind])
+            w.writerow([judge, pair_id, p['sample'], p['label'], o['A'], o['B'], o['C'], letter_of(p, winner, choice), winner, note, secs, at, blind])
     return Response(buf.getvalue(), media_type='text/csv',
                     headers={'Content-Disposition': 'attachment; filename="blind-votes.csv"'})

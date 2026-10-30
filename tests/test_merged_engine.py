@@ -5,6 +5,7 @@ from pathlib import Path
 from engine.analysis import analyze
 from engine.canonical import Box
 from engine.layout import Env
+from merged import growth
 from merged.floorplan import fit_weighted, plans, units
 from merged.resize import scale_spacing, wasted_canvas
 
@@ -71,6 +72,31 @@ class MergedEngineTest(unittest.TestCase):
         large = {'canvas': {'width': 20, 'height': 20}, 'elements': [{**text('t', 0, 0, 5, 5, 80, 0, 'Hi'), 'letter_spacing': 8}]}
         self.assertEqual(scale_spacing(source, small)['elements'][0]['letter_spacing'], 4)
         self.assertEqual(scale_spacing(source, large)['elements'][0]['letter_spacing'], 8)
+
+    def test_growth_lets_a_strip_headline_wrap_to_grow_in_a_narrow_column(self):
+        from engine.blocks import Ctx, TextBlock
+        el = text('h', 0, 0, 1500, 80, 60, 1, 'Kitchen Utensils and Tools for Every Home Cook')  # one long strip line
+        block = TextBlock(el, 'headline', 'Headline', 1.0)
+        ctx = Ctx(1000, 1500)
+        before = TextBlock.layout(block, 2.0, 900, ctx)
+        after = growth.text_layout(block, 2.0, 900, ctx)
+        size = lambda laid: laid.place(0, 0)[0]['h']['font_size']
+        self.assertLessEqual(size(before), 60)   # the source-wrap rule holds it at its source size
+        self.assertGreater(size(after), 60)      # allowed to wrap, it grows with the canvas
+
+    def test_growth_keeps_the_source_wrap_when_the_column_is_wide_enough(self):
+        from engine.blocks import Ctx, TextBlock
+        el = text('h', 0, 0, 300, 80, 60, 1, 'Short')
+        block = TextBlock(el, 'headline', 'Headline', 1.0)
+        laid = growth.text_layout(block, 1.5, 2000, Ctx(2000, 2000))
+        self.assertEqual(laid.place(0, 0)[0]['h']['font_size'], 90)
+
+    def test_growth_cap_follows_the_canvas_area(self):
+        A = analyze(poster())
+        A.sw, A.sh = 1640.0, 400.0
+        env = Env(A, 1000.0, 1500.0)
+        self.assertAlmostEqual(growth.s_hi(env), 1.25 * (1000 * 1500 / (1640 * 400)) ** 0.5)
+        self.assertEqual(growth.s_hi(Env(A, 728.0, 90.0)), 1.25)  # shrinking targets are unchanged
 
 
 if __name__ == '__main__':

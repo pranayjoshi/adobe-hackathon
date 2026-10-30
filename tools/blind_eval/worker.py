@@ -27,10 +27,15 @@ import renderer.converter.brand_fonts  # noqa: E402,F401
 sys.path.remove(str(renderer_root))
 sys.path.insert(0, str(engine_root))
 
+code = None
 if name == 'merged':
-    # The merged engine (merged/) runs on the engine snapshot at engine_root.
-    sys.path.append(str(Path(__file__).resolve().parents[2]))
+    # The merged engine (merged/) runs on the engine snapshot at engine_root. Each run records
+    # the fingerprint of the merged/ code it ran, so a study never mixes two versions.
+    repo = Path(__file__).resolve().parents[2]
+    sys.path.append(str(repo))
     from merged.resize import resize  # noqa: E402
+    from tools.blind_eval.versions import code_fingerprint  # noqa: E402
+    code = code_fingerprint()
 else:
     from engine.resize import resize  # noqa: E402
 
@@ -42,7 +47,7 @@ if name == 'gaurav':
 
 for task in json.loads(Path(shard).read_text()):
     out = out_dir / f"{task['id']}.json"
-    if out.exists():
+    if out.exists() and json.loads(out.read_text()).get('code') == code:
         continue
     started = time.perf_counter()
     try:
@@ -51,6 +56,8 @@ for task in json.loads(Path(shard).read_text()):
     except Exception:
         record = {'ok': False, 'error': traceback.format_exc()[-3000:]}
     record['seconds'] = round(time.perf_counter() - started, 3)
+    if code:
+        record['code'] = code
     tmp = out.with_suffix('.tmp')
     tmp.write_text(json.dumps(record))
     tmp.replace(out)

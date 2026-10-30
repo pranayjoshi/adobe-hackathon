@@ -9,6 +9,8 @@
 @media (prefers-color-scheme:dark){:root{--bg:#141413;--panel:#1d1d1b;--ink:#ededea;--muted:#9b9b95;--line:#2f2f2c;--stage:#262624;--accent:#7c9cf5;--accent-ink:#0d0d0c;--a:#fb923c;--b:#2dd4bf;--c:#c4b5fd;--good:#4ade80;--chip:#2a2a27}}
 *{box-sizing:border-box}
 [hidden]{display:none!important}
+.reveal-banner{display:none;background:#b45309;color:#fff;text-align:center;padding:6px 12px;font-size:13px;font-weight:600}
+body.revealed .reveal-banner{display:block}
 body{margin:0;background:var(--bg);color:var(--ink);font:14px/1.45 ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif}
 button{font:inherit;color:inherit;cursor:pointer}
 header{position:sticky;top:0;z-index:5;display:flex;align-items:center;gap:14px;padding:10px 20px;background:var(--panel);border-bottom:1px solid var(--line);flex-wrap:wrap}
@@ -88,6 +90,7 @@ a{color:var(--accent)}
   <div class="progress" id="progress"><span id="progressText"></span><div class="bar"><i id="progressBar"></i></div></div>
   <label class="toggle">Blind mode <button class="switch" id="blind" role="switch" aria-checked="true"></button></label>
 </header>
+<div class="reveal-banner">Blind mode is off: engine names are showing. Votes cast now are marked as not blind.</div>
 <main id="main"></main>
 <div class="panel" id="panel">
   <div class="inner">
@@ -97,7 +100,7 @@ a{color:var(--accent)}
       <div class="navs">
         <button class="nav" id="prev" title="Previous (←)">←</button>
         <button class="nav" id="next" title="Next (→)">→</button>
-        <button class="nav grow" id="nextOpen" title="Next pair still needing votes (N)">Next unfinished</button>
+        <button class="nav grow" id="nextOpen" title="Next task still needing votes (N)">Next unfinished</button>
       </div>
       <div class="status" id="status"></div>
     </div>
@@ -109,10 +112,11 @@ a{color:var(--accent)}
 const $ = s => document.querySelector(s);
 const store = {get(k){try{return localStorage.getItem(k)}catch{return null}}, set(k,v){try{localStorage.setItem(k,v)}catch{}}};
 const JUDGES = ['pranay', 'gaurav', 'kavya'];
-const NAMES = {pranay: 'Pranay', gaurav: 'Gaurav', kavya: 'Kavya', merged: 'Merged'};
+const NAMES = {pranay: 'Pranay', gaurav: 'Gaurav', kavya: 'Kavya'};  // the judges
+const ENGINE_NAMES = {pranay: "Pranay's engine", gaurav: "Gaurav's engine", merged: 'Merged engine'};
 const KEYS = {pranay: 'qwert', gaurav: 'asdfg', kavya: 'zxcvb'};  // one row of keys per judge
 const CHOICES = [['A', 'A best'], ['B', 'B best'], ['C', 'C best'], ['none', 'No clear winner'], ['all-bad', 'All bad']];
-const S = {blind: store.get('bj.blind') !== '0', order: [], votes: {}, i: 0, pair: null, shownAt: 0, tab: 'judge', planned: 0, advance: null};
+const S = {blind: true, order: [], votes: {}, i: 0, pair: null, shownAt: 0, tab: 'judge', planned: 0, advance: null};
 
 async function api(path, opts) {
   const r = await fetch(path, opts);
@@ -128,7 +132,7 @@ function el(tag, attrs = {}, ...kids) {
 }
 const complete = id => JUDGES.every(j => (S.votes[id] || {})[j]);
 
-// One row per judge: everyone votes on the same pair before moving on.
+// One row per judge: everyone votes on the same task before moving on.
 for (const j of JUDGES) {
   const row = el('div', {class: 'jrow', 'data-judge': j}, el('span', {class: 'who'}, NAMES[j]));
   CHOICES.forEach(([c, label], k) => row.append(el('button', {class: 'v' + (c.length === 1 ? ' ' + c : ''), 'data-choice': c, onclick: () => vote(j, c)},
@@ -152,7 +156,11 @@ async function start() {
   showTab('judge');
 }
 
-function setBlind(on) { S.blind = on; store.set('bj.blind', on ? '1' : '0'); $('#blind').setAttribute('aria-checked', on); if (S.tab === 'judge' && S.pair) load(S.i); }
+function setBlind(on) {
+  // Never remembered: every page load starts blind, so a browser used to check names can't leak them later.
+  S.blind = on; $('#blind').setAttribute('aria-checked', on); document.body.classList.toggle('revealed', !on);
+  if (S.tab === 'judge' && S.pair) load(S.i);
+}
 
 function progress() {
   const n = S.order.filter(complete).length;
@@ -174,7 +182,7 @@ function paintVotes() {
 
 async function load(i) {
   clearTimeout(S.advance);
-  if (!S.order.length) { $('#main').replaceChildren(el('div', {class: 'gate'}, el('h2', {}, 'No pairs yet'), el('p', {}, 'The engines are still generating. This page will find them when you press Next unfinished.'))); return; }
+  if (!S.order.length) { $('#main').replaceChildren(el('div', {class: 'gate'}, el('h2', {}, 'No tasks yet'), el('p', {}, 'The engines are still generating. This page will find them when you press Next unfinished.'))); return; }
   S.i = (i + S.order.length) % S.order.length;
   const id = S.order[S.i];
   const p = await api(`/api/pair/${encodeURIComponent(id)}?reveal=${!S.blind}`);
@@ -182,8 +190,9 @@ async function load(i) {
   const shape = p.target.width / p.target.height >= 2.2 ? ' stack' : '';
   const card = side => {
     const s = p.sides[side];
-    const label = el('div', {class: 'label'}, el('b', {}, side === 'A' ? 'Option A' : 'Option B'));
-    if (s.engine) label.append(el('span', {class: 'engine'}, NAMES[s.engine]));
+    const label = el('div', {class: 'label'}, el('b', {}, `Option ${side}`));
+    if (s.engine) label.append(el('span', {class: 'engine'}, ENGINE_NAMES[s.engine]));
+    else if (s.same) label.append(el('span', {class: 'engine'}, `same picture as ${s.same}`));
     const frame = el('div', {class: 'frame'});
     if (s.ok) frame.append(el('img', {src: s.img, alt: `Option ${side}`, onclick: e => zoom(e.target.src),
       onerror: e => e.target.replaceWith(el('div', {class: 'none'}, 'This picture changed since the page loaded.', el('br'), 'Reload the page before voting.'))}));
@@ -192,7 +201,7 @@ async function load(i) {
   };
   $('#main').replaceChildren(
     el('div', {class: 'meta'}, el('h2', {}, `${p.target.label} · ${p.target.width}×${p.target.height}`),
-      el('span', {}, `from “${p.title}”, ${p.source_size[0]}×${p.source_size[1]} · pair ${S.i + 1} of ${S.order.length}`)),
+      el('span', {}, `from “${p.title}”, ${p.source_size[0]}×${p.source_size[1]} · task ${S.i + 1} of ${S.order.length}`)),
     el('div', {class: 'stage'},
       el('div', {class: 'source'}, el('div', {class: 'label'}, el('span', {}, 'Original'), el('span', {}, `${p.source_size[0]}×${p.source_size[1]}`)),
         el('img', {src: p.source_img, alt: 'Original design', onclick: e => zoom(e.target.src)})),
@@ -236,7 +245,7 @@ async function nextOpen(refreshed = false) {
     if (!complete(S.order[j])) return load(j);
   }
   if (!refreshed) { await refreshQueue(); return nextOpen(true); }  // more pairs may have been published
-  toast('Every published pair is judged. More appear as the engines finish.'); progress();
+  toast('Every published task is judged. More appear as the engines finish.'); progress();
 }
 
 function zoom(src) { const z = $('#zoom'); z.querySelector('img').src = src; z.classList.add('on'); }
@@ -253,13 +262,13 @@ function resultsGate() {
   S.pair = null; clearTimeout(S.advance);
   const left = S.order.filter(id => !complete(id)).length;
   $('#main').replaceChildren(el('div', {class: 'gate'}, el('h2', {}, 'Results reveal the engine names'),
-    el('p', {}, left > 0 ? `${left} published pairs still need votes. Seeing who wins now can bias the rest of the panel's votes.` : 'Every published pair has all three votes.'),
+    el('p', {}, left > 0 ? `${left} published tasks still need votes. Seeing who wins now can bias the rest of the panel's votes.` : 'Every published task has all three votes.'),
     el('button', {class: 'primary', onclick: results}, 'Show results'), ' ',
     el('button', {class: 'nav', onclick: () => showTab('judge')}, 'Back to judging')));
 }
 
 const ENGINES = ['pranay', 'gaurav', 'merged'];
-const LABEL = {pranay: 'Pranay', gaurav: 'Gaurav', merged: 'Merged', none: 'No clear winner', 'all-bad': 'All bad'};
+const LABEL = {...ENGINE_NAMES, none: 'No clear winner', 'all-bad': 'All bad'};
 const COLORS = {pranay: 'var(--a)', gaurav: 'var(--b)', merged: 'var(--c)', none: 'var(--muted)', 'all-bad': 'var(--line)'};
 function split(t) {
   // A shared picture credits several engines, so the bar is scaled to the sum of its parts.
@@ -274,7 +283,7 @@ function tallyTable(head, rows) {
   for (const [name, t] of rows) tb.append(el('tr', {}, el('td', {}, name), el('td', {}, String(t.n)),
     ...ENGINES.map(e => el('td', {}, `${t[e]} (${pct(t[e + '_share'])})`)),
     el('td', {}, String(t.none)), el('td', {}, String(t['all-bad'])), el('td', {}, split(t))));
-  return el('table', {}, el('thead', {}, el('tr', {}, ...[head, 'Votes', 'Pranay*', 'Gaurav*', 'Merged*', 'No winner', 'All bad', ''].map(h => el('th', {}, h)))), tb);
+  return el('table', {}, el('thead', {}, el('tr', {}, ...[head, 'Votes', ...ENGINES.map(e => ENGINE_NAMES[e] + '*'), 'No winner', 'All bad', ''].map(h => el('th', {}, h)))), tb);
 }
 
 async function results() {
@@ -284,9 +293,9 @@ async function results() {
   const m = r.majority;
   $('#main').replaceChildren(
     el('div', {class: 'cards'},
-      stat('Picked as best* · Pranay / Gaurav / Merged', ENGINES.map(e => pct(r.overall[e + '_share'])).join(' / ')),
+      stat("Picked as best* · Pranay's / Gaurav's / Merged", ENGINES.map(e => pct(r.overall[e + '_share'])).join(' / ')),
       stat('Tasks judged by all three', `${r.fully_judged} / ${r.total_pairs}`),
-      stat('Majority wins · Pranay / Gaurav / Merged', ENGINES.map(e => Object.entries(m).filter(([k]) => k.split(',').includes(e)).reduce((a, [, n]) => a + n, 0)).join(' / ')),
+      stat("Majority wins · Pranay's / Gaurav's / Merged", ENGINES.map(e => Object.entries(m).filter(([k]) => k.split(',').includes(e)).reduce((a, [, n]) => a + n, 0)).join(' / ')),
       stat("Agreement (Fleiss' κ)", r.kappa == null ? '–' : String(r.kappa))),
     el('section', {class: 'box'}, el('h3', {}, 'By judge'), legend, tallyTable('Judge', Object.entries(r.per_judge).map(([j, t]) => [NAMES[j], t]))),
     el('section', {class: 'box'}, el('h3', {}, 'By target size'), tallyTable('Target', Object.entries(r.by_size))),
