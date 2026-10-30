@@ -13,6 +13,13 @@ from .contracts import Budget, CONTROLLER_MODES, DesignRevision, NoValidDesign, 
 from .materialize import apply_edit, proposal_from_design
 
 
+def missing_original_asset(verification):
+    """True only when official verification failed because an original image is absent."""
+    if not isinstance(verification, dict) or verification.get('verified'):
+        return False
+    return str(verification.get('error') or '').startswith('Missing or unsafe image asset:')
+
+
 def candidate_key(candidate):
     from .refine import key
     return key(candidate)
@@ -39,6 +46,8 @@ def run_controller(source, seeds: Iterable[tuple[str, dict]], *, assess: Callabl
     session = uuid.uuid4().hex
     events, seen, beam = [], set(), []
     incumbent = None
+    unverified_best = None
+    missing_asset_blocked = False
     active = None
     stop = None
     seed_iter = iter(seeds)
@@ -56,7 +65,7 @@ def run_controller(source, seeds: Iterable[tuple[str, dict]], *, assess: Callabl
                 'events': events, 'usage': budget.usage()}
 
     def evaluate(design, operation, parent=None, is_edit=False):
-        nonlocal incumbent
+        nonlocal incumbent, unverified_best, missing_asset_blocked
         try:
             hashed = design_hash(design)
             if hashed in seen:
@@ -71,12 +80,16 @@ def run_controller(source, seeds: Iterable[tuple[str, dict]], *, assess: Callabl
         promising = valid and (incumbent is None or better(candidate, incumbent))
         verification = {'verified': False, 'status': 'not_rendered'}
         image = None
-        if promising and budget.renders < budget.max_renders and budget.remaining() > 0:
+        if promising and not missing_asset_blocked and budget.renders < budget.max_renders and budget.remaining() > 0:
             if not (budget.cancellation and budget.cancellation()):
                 budget.renders += 1
                 verification = verify(candidate['design'])
                 image = verification.pop('image', None)
                 candidate['verification'] = verification
+                # The same original file is missing for every candidate. Further
+                # official renders cannot succeed, so stop charging the budget.
+                if missing_original_asset(verification):
+                    missing_asset_blocked = True
         valid = bool(candidate['valid'] and candidate['rubric']['gate'])
         promising = valid and (incumbent is None or better(candidate, incumbent))
         accepted = promising and bool(verification.get('verified'))
@@ -105,6 +118,8 @@ def run_controller(source, seeds: Iterable[tuple[str, dict]], *, assess: Callabl
                                'rendered': image is not None, 'image': image,
                                'assessment': {'valid': valid, 'rubric': candidate['rubric'],
                                               'score': candidate['score'], 'verification': verification}})
+        if valid and missing_asset_blocked and (unverified_best is None or better(candidate, unverified_best)):
+            unverified_best = candidate
         if accepted:
             incumbent = candidate
         return candidate if valid else None
@@ -175,6 +190,15 @@ def run_controller(source, seeds: Iterable[tuple[str, dict]], *, assess: Callabl
     stop = stop or budget.stop_reason() or 'no_valid_design'
     emit('stopped', stop_reason=stop, usage=budget.usage())
     result_report = report()
+    if incumbent is None and unverified_best is not None and missing_asset_blocked:
+        # Visible layout only. A missing original image is not a verified result.
+        result_report['official_verification'] = 'missing_original_asset'
+        result_report['counts_as_success'] = False
+        unverified_best = copy.deepcopy(unverified_best)
+        unverified_best['verification'] = {**unverified_best.get('verification', {}), 'verified': False, 'counts_as_success': False}
+        unverified_best['controller'] = result_report
+        unverified_best['trace'] = unverified_best.get('trace', []) + [{'controller': result_report}]
+        return [unverified_best]
     if incumbent is None:
         raise NoValidDesign('No verified valid design: ' + stop, report=result_report)
     incumbent = copy.deepcopy(incumbent)
