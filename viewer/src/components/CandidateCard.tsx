@@ -48,6 +48,7 @@ export function CandidateCard({ c, rank, name, showOverlay, roleOf, labelOf, onO
         )}
       </button>
       <div className={`flex flex-1 flex-col gap-3 border-t border-white/[0.06] p-4 ${wide ? "xl:w-[340px] xl:flex-none xl:border-l xl:border-t-0" : ""}`}>
+        {c.preview_verified === false && <p className="text-xs text-amber-300" role="status">Unverified preview. A required original image is missing.</p>}
         {c.quality?.passed === false && <p className="text-xs text-amber-300" role="status">No clean result for this option: {c.quality.defect_count} layout issues. Preservation checks do not certify visual quality.</p>}
         {c.diagnostics && <details className="text-xs text-zinc-400"><summary>Placement diagnostics and repair trace</summary><pre className="max-h-56 overflow-auto whitespace-pre-wrap">{JSON.stringify({diagnostics:c.diagnostics,trace:c.trace},null,2)}</pre></details>}
         <div className="flex items-start gap-3">
