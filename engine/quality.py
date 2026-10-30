@@ -1,6 +1,6 @@
 """Independent visible-geometry and composited contrast diagnostics."""
 from __future__ import annotations
-import copy, hashlib, json, math, os, subprocess, sys, tempfile, threading, time
+import copy, hashlib, json, math, os, re, subprocess, sys, tempfile, threading, time
 from pathlib import Path
 from PIL import Image, ImageColor, ImageDraw, ImageOps, ImageStat
 from .canonical import ASSETS_DIR, FONTS_DIR, ROOT, Box, element_box, rotated_extent, union_all
@@ -21,14 +21,20 @@ def _file_hash(path):
         _RESOURCE_BYTES[signature]=hashlib.sha256(path.read_bytes()).hexdigest()
     return _RESOURCE_BYTES[signature]
 
-def resource_fingerprint(design):
+_PLACEHOLDER_WARNING=re.compile(r"^Missing asset '([^']*)' for element '[^']*' - rendered a placeholder\.$")
+
+def resource_fingerprint(design, *, allow_missing=False):
     """Include actual images, all available font faces and renderer implementation."""
-    paths=[]
+    paths=[];missing=[]
     for e in design.get('elements',[]):
         if e.get('type')!='image':continue
-        path=(ASSETS_DIR/str(e.get('asset_id',''))).resolve()
-        if not path.is_relative_to(ASSETS_DIR.resolve()) or not path.is_file():
-            raise ValueError('Missing or unsafe image asset: '+str(e.get('asset_id')))
+        asset=str(e.get('asset_id',''))
+        path=(ASSETS_DIR/asset).resolve()
+        if not path.is_relative_to(ASSETS_DIR.resolve()):
+            raise ValueError('Missing or unsafe image asset: '+asset)
+        if not path.is_file():
+            if not allow_missing:raise ValueError('Missing or unsafe image asset: '+asset)
+            missing.append(asset);continue
         paths.append(path)
     paths += [p for p in FONTS_DIR.rglob('*') if p.is_file() and p.suffix.lower() in ('.ttf','.otf','.json')]
     paths += list((ROOT/'renderer'/'converter').glob('*.py'))
@@ -38,7 +44,10 @@ def resource_fingerprint(design):
     from importlib.metadata import version, PackageNotFoundError
     try: native=version('cr-renderer')
     except PackageNotFoundError:native='unavailable'
-    return hashlib.sha256(json.dumps([VERIFICATION_PROFILE,native,values],sort_keys=True).encode()).hexdigest()
+    payload=[VERIFICATION_PROFILE,native,values]
+    # Missing names stay out of the default hash so existing verified caches remain valid.
+    if allow_missing:payload.append(sorted(missing))
+    return hashlib.sha256(json.dumps(payload,sort_keys=True).encode()).hexdigest()
 
 def verify_design(design, output_path=None, profile=VERIFICATION_PROFILE, timeout=12, max_size=None):
     """Render exact serialized design in isolation; failures never become success.
@@ -90,6 +99,54 @@ def verify_design(design, output_path=None, profile=VERIFICATION_PROFILE, timeou
             try:rendered.save(pending,format='PNG');os.replace(pending,destination)
             finally:pending.unlink(missing_ok=True)
         result.update(status='verified',verified=True,image=rendered,dimensions=list(rendered.size))
+    except subprocess.TimeoutExpired:result['error']='Official renderer timed out'
+    except (ValueError,TypeError,KeyError,OSError,RuntimeError) as exc:result['error']=str(exc)
+    finally:result['duration_ms']=round((time.monotonic()-started)*1000,3)
+    return result
+
+def unverified_missing_asset_preview(design, timeout=12):
+    """Display-only render when original images are absent.
+
+    The official renderer draws its existing missing-asset placeholder. The
+    returned pixels are never verified and must not be cached as a success.
+    """
+    started=time.monotonic()
+    result={'status':'failed','verified':False,'image':None,'profile':'unverified-missing-asset-v1','warnings':[],'counts_as_success':False}
+    try:
+        payload=json.dumps(design,sort_keys=True,allow_nan=False,separators=(',',':'))
+        result['design_hash']=hashlib.sha256(payload.encode()).hexdigest()
+        w,h=(design['canvas'][k] for k in ('width','height'))
+        if any(isinstance(v,bool) or not isinstance(v,(int,float)) or not math.isfinite(v) or v<=0 or int(v)!=v for v in (w,h)):
+            raise ValueError('Canvas must use positive integer dimensions')
+        if max(w,h)>16384 or w*h>32_000_000:raise ValueError('Canvas exceeds isolated render resource limit')
+        result['resource_hash']=resource_fingerprint(design,allow_missing=True)
+        missing=[]
+        for e in design.get('elements',[]):
+            if e.get('type')!='image':continue
+            asset=str(e.get('asset_id',''))
+            path=(ASSETS_DIR/asset).resolve()
+            if path.is_relative_to(ASSETS_DIR.resolve()) and not path.is_file():missing.append(asset)
+        if not missing:raise ValueError('Diagnostic preview requires a missing image asset')
+        with tempfile.TemporaryDirectory(prefix='chameleon-unverified-') as folder:
+            task=Path(folder)/'design.json';png=Path(folder)/'render.png';meta=Path(folder)/'meta.json'
+            task.write_text(payload)
+            process=subprocess.run([sys.executable,'-m','engine.render_worker',str(task),str(png),str(int(max(w,h))),str(meta)],cwd=ROOT,stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL,timeout=max(.01,float(timeout)))
+            if process.returncode or not png.is_file():
+                detail=json.loads(meta.read_text()).get('error') if meta.is_file() else None
+                raise RuntimeError(detail or 'Official renderer failed')
+            warnings=json.loads(meta.read_text()).get('warnings',[]) if meta.is_file() else []
+            named=[]
+            for warning in warnings:
+                match=_PLACEHOLDER_WARNING.match(warning)
+                if not match:raise RuntimeError('Diagnostic preview refused warnings that are not missing-asset placeholders: '+'; '.join(warnings))
+                named.append(match.group(1))
+            if set(named)!=set(missing):
+                raise RuntimeError('Diagnostic preview asset warnings do not match missing files')
+            with Image.open(png) as im:im.load();rendered=im.convert('RGB').copy()
+            if rendered.size!=(int(w),int(h)):raise RuntimeError('Renderer dimensions do not match exported canvas')
+        if resource_fingerprint(design,allow_missing=True)!=result['resource_hash']:
+            raise RuntimeError('Resources changed during verification; retry with stable asset/font files')
+        result.update(status='unverified',image=rendered,warnings=warnings,missing_assets=sorted(set(missing)))
     except subprocess.TimeoutExpired:result['error']='Official renderer timed out'
     except (ValueError,TypeError,KeyError,OSError,RuntimeError) as exc:result['error']=str(exc)
     finally:result['duration_ms']=round((time.monotonic()-started)*1000,3)
