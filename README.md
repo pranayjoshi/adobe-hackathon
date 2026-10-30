@@ -127,7 +127,7 @@ Original on the left of each group, then two new sizes. These are tasks the pane
 
 The brief rules out anything hand-tailored to a design or a size. We held ourselves to that:
 
-- No design-specific rules, ids or titles anywhere in the engine code.
+- No rules for specific designs or sizes. The only design ids in the code are three kept out of the layout library, so they can't leak into it.
 - Any model change had to beat the old one on designs held out from fitting. Two new judge features and a refit on both vote rounds did not, so they were rejected.
 - 146 designs were set aside and used only once, at the very end.
 - Speedups had to reproduce the old layouts exactly. With time limits removed, 15 of 15 test tasks came out identical.
