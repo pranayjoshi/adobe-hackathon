@@ -184,6 +184,47 @@ def pairs(tasks):
     print(f'{len(out)} tasks written; failed outputs per engine: {fails}')
 
 
+SHAPE_CLASS = {'leaderboard': 'extreme wide', 'billboard': 'extreme wide', 'li-banner': 'extreme wide', 'web-hero': 'extreme wide',
+               'fb-cover': 'wide', 'yt-thumb': 'wide', 'x-post': 'wide',
+               'mrec': 'near square', 'ig-post': 'near square', 'ig-portrait': 'near square',
+               'pin': 'tall', 'half-page': 'tall', 'ig-story': 'tall', 'skyscraper': 'extreme tall'}
+
+
+def core(size=200):
+    """The tasks judged first: one per design, balanced across canvas shapes, favouring tasks
+    where the merged picture differs from ours (identical pictures say nothing about merged vs
+    ours). Written once to core.json with the merged version it was chosen for; rechosen only
+    when that version changes."""
+    published = json.loads((WORK / 'pairs.json').read_text())
+    path = WORK / 'core.json'
+    if len(published) < len(json.loads((WORK / 'tasks.json').read_text())):
+        print('Core set waits until every task is published')
+        return
+    if path.exists() and json.loads(path.read_text()).get('merged_code') == code_fingerprint():
+        return
+    by_design = {}
+    for t in published:
+        by_design.setdefault(t['sample'], []).append(t)
+    per_class = size / len(set(SHAPE_CLASS.values()))
+    counts, chosen = Counter(), []
+    rng = random.Random(digest('core'))
+    designs = sorted(by_design)
+    rng.shuffle(designs)
+    def differs(t):
+        e = t['engines']
+        return not e['pranay']['ok'] or e['merged']['render'] != e['pranay']['render']
+    for sample in designs[:size]:
+        def score(t):
+            c = SHAPE_CLASS[t['preset']]
+            return 2.0 * differs(t) + 1.5 * max(0.0, per_class - counts[c]) / per_class + rng.random() * 0.01
+        best = max(by_design[sample], key=score)
+        counts[SHAPE_CLASS[best['preset']]] += 1
+        chosen.append(best['id'])
+    stats = {'shapes': dict(counts), 'merged_differs': sum(differs(t) for t in published if t['id'] in set(chosen))}
+    path.write_text(json.dumps({'merged_code': code_fingerprint(), 'tasks': chosen, **stats}, indent=1))
+    print(f'Core set: {len(chosen)} tasks, by shape {dict(counts)}, merged differs from ours in {stats["merged_differs"]}')
+
+
 def verify(sample=40):
     """Check every published option against the data it claims to show. Exits non-zero on any
     mismatch: a wrong picture under a name would silently corrupt every vote on it."""
@@ -251,3 +292,4 @@ if __name__ == '__main__':
     render(tasks)
     pairs(tasks)
     verify()
+    core()

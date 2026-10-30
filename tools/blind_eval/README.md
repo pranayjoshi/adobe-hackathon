@@ -36,6 +36,12 @@ Every stage resumes and skips work already done. Each merged run records a finge
 Open `http://<this-mac's-LAN-IP>:8790` (it works from any machine on the same network). The page opens straight onto a task: the original design, then options A, B and C. Below them is one row for each judge. The three judges vote together on each task: **A best / B best / C best / no clear winner / all bad**. Once all three have voted, the page moves on to the next task that still needs votes.
 
 - Keys: Pranay `Q W E R T`, Gaurav `A S D F G`, Kavya `Z X C V B`, in the order A best, B best, C best, no clear winner, all bad. Pressing the same choice again takes the vote back. `←` `→` move between tasks, and `N` goes to the next unfinished one.
+- **Core set first.** Once every task is published, `build` chooses a core set of 200 tasks and saves it in `work/blind-eval/core.json`:
+  - one size per design;
+  - balanced across canvas shapes (about 40 each of extreme wide, wide, near square, tall and extreme tall);
+  - preferring tasks where the merged picture differs from ours, since identical pictures say nothing about merged vs ours.
+
+  The judge serves the core set first, with progress shown as "Core set: n / 200", and the Results tab can show the core set or all tasks. About 200 tasks gives roughly 150 decisive results, enough to detect a 60/40 preference. The core set is chosen again only if the merged engine's version changes.
 - The optional note is saved with the next vote anyone casts.
 - Blind mode is on whenever the page loads; it is never remembered, so a browser once used to check names cannot show them to the next judge. Turning it off shows each option's engine ("Pranay's engine", "Gaurav's engine", "Merged engine") under an orange banner, and every vote records whether it was cast blind.
 - When two options show the same picture (the merged engine often keeps our layout), the second is marked "same picture as A". A vote for either credits both engines.

@@ -57,7 +57,15 @@ class MergedEngineTest(unittest.TestCase):
     def test_every_shape_family_gets_a_plan(self):
         A = analyze(poster())
         for size, family in (((1080, 1920), 'floorplan_column'), ((1600, 900), 'floorplan_split'), ((728, 90), 'floorplan_row')):
-            self.assertIn(family, [p.template for p in plans(A, *size)])
+            self.assertTrue(any(p.template.startswith(family) for p in plans(A, *size)), family)
+
+    def test_plans_that_would_make_text_unreadable_are_dropped(self):
+        A = analyze(poster())
+        made = {p.template: p for p in plans(A, 728, 90)}
+        self.assertNotIn('floorplan_row', made)   # the photo with its caption, squeezed into 90 px
+        self.assertIn('floorplan_row_free', made)  # the caption beside the photo instead
+        caption = made['floorplan_row_free'].patches['caption']['font_size']
+        self.assertGreaterEqual(caption, 8)
 
     def test_wasted_canvas_flags_a_letterboxed_background(self):
         source = {'canvas': {'width': 100, 'height': 100}, 'elements': [image('bg', 0, 0, 100, 100, 0), text('t', 10, 10, 50, 10, 8, 1, 'Hi')]}
@@ -97,6 +105,22 @@ class MergedEngineTest(unittest.TestCase):
         env = Env(A, 1000.0, 1500.0)
         self.assertAlmostEqual(growth.s_hi(env), 1.25 * (1000 * 1500 / (1640 * 400)) ** 0.5)
         self.assertEqual(growth.s_hi(Env(A, 728.0, 90.0)), 1.25)  # shrinking targets are unchanged
+
+    def test_floor_plans_are_excused_recomposition_but_not_real_problems(self):
+        from merged.resize import rank_key
+        source = {'canvas': {'width': 100, 'height': 100}, 'elements': [text('t', 10, 10, 80, 20, 8, 1, 'Hi')]}
+        design = {'canvas': {'width': 100, 'height': 100}, 'elements': [text('t', 10, 10, 80, 20, 8, 1, 'Hi')]}
+        def candidate(template, **defects):
+            found = {'overflow': [], 'collisions': [], 'contrast_regressions': [], 'unreadable': [], 'unsupported_text': [],
+                     'scene_displacement': [], **defects}
+            return {'template': template, 'design': design, 'valid': True, 'score': {'total': 80},
+                    'quality': {'defect_count': sum(len(v) for v in found.values()), 'defects': found},
+                    'rubric': {'gate': True, 'tier2': {'defects': [], 'overall': 80}}}
+        moved = candidate('floorplan_split', unsupported_text=['t'], scene_displacement=['t'])
+        clean = candidate('split_left')
+        self.assertGreater(rank_key(source, moved), rank_key(source, clean))   # recomposing is allowed
+        collided = candidate('floorplan_split', collisions=[{'ids': ['t']}])
+        self.assertLess(rank_key(source, collided), rank_key(source, clean))   # a collision is not
 
 
 if __name__ == '__main__':

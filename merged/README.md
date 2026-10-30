@@ -31,6 +31,16 @@ The root cause, found by inspecting the ranked candidates: the uniform "Original
 3. **Ranking charges for wasted canvas** (`wasted_canvas`). A background that no longer reaches the canvas edges costs 2 defects. Content shrunk below 60% of its source share costs 1. Otherwise the ranking is the pipeline's own.
 4. **No refusals.** If nothing passes every guardrail, the best structurally valid layout is returned. If nothing is structurally valid, the one failing the fewest checks is returned. `resize_with_report` says which case applied.
 5. **Letter spacing shrinks with the font** (never grows, because text boxes were measured with the source spacing). `MERGED_SCALE_SPACING=0` turns this off.
+6. **Text grows with the canvas** (`growth.py`). Going from a strip to a squarer canvas, text may wrap to grow instead of staying at its source size, and the largest allowed scale also follows the canvas area. `MERGED_GROWTH=0` turns this off.
+7. **Floor plans get leeway** (`MERGED_FLOORPLAN_LEEWAY=0` turns this off).
+   - They are excused the "moved away from the original" flags (text no longer on the part of the photo it began on), because recomposing is what they're for.
+   - They win ties against the pipeline's own layouts.
+   - Real problems still count in full: collisions, overflow, lost contrast, unreadable or overlapping text, and wasted canvas.
+   - The leeway only applies when the floor plan's headline is at least 85% as big as the headline of the best other layout, so a plan wins by being bolder, never smaller.
+
+**Guards on floor plans:**
+- A plan is dropped if it would push any text below 8 px (2% of the short side on big canvases), or below its source size when that was smaller.
+- When the photo's own text would get too small as one unit, a second variant lays the copy beside the photo instead (`floorplan_*_free`).
 
 `install()` adds two run-time hooks to `engine.pipeline`: floor plans appended to `propose`, and cover-crop applied after `serialise`. It runs on whichever `engine` package is importable. The blind study runs it on the committed snapshot in `work/blind-eval/engines/pranay`.
 

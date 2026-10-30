@@ -79,11 +79,20 @@ def db():
     return con
 
 
+def core_tasks():
+    """The core set (core.json), judged before everything else; empty until it is chosen."""
+    path = WORK / 'core.json'
+    return json.loads(path.read_text())['tasks'] if path.is_file() else []
+
+
 def shared_order():
-    """One shuffled order for the panel, so sizes and designs do not come in runs."""
+    """One shuffled order for the panel, so sizes and designs do not come in runs; the core
+    set comes first, then every other task."""
     pairs()
-    ids = list(PLANNED)  # shuffle the full plan, so pairs published later keep the order stable
+    ids = list(PLANNED)  # shuffle the full plan, so tasks published later keep the order stable
     random.Random(hashlib.sha256(b'order|panel').hexdigest()).shuffle(ids)
+    first = set(core_tasks())
+    ids = [i for i in ids if i in first] + [i for i in ids if i not in first]
     return [i for i in ids if i in BY_ID]
 
 
@@ -141,7 +150,7 @@ def queue():
     """The panel's order and every judge's votes so far."""
     with db() as con:
         votes = votes_by_pair(con)
-    return {'order': shared_order(), 'votes': votes, 'planned': len(PLANNED)}
+    return {'order': shared_order(), 'votes': votes, 'planned': len(PLANNED), 'core': core_tasks()}
 
 
 @app.get('/api/pair/{pair_id}')
@@ -256,12 +265,15 @@ def verdict_of(winners):
 
 
 @app.get('/api/results')
-def results():
+def results(scope: Literal['all', 'core'] = 'all'):
+    """Tallies over every task, or (scope=core) over the core set only."""
     by_pair = defaultdict(dict)
+    pairs()
+    keep = set(core_tasks()) if scope == 'core' else set(BY_ID)
     with db() as con:
         for judge, pair_id, winner in con.execute('select judge, pair, winner from votes'):
-            by_pair[pair_id][judge] = winner
-    pairs()
+            if pair_id in keep:
+                by_pair[pair_id][judge] = winner
     per_judge = {j: tally([v[j] for v in by_pair.values() if j in v]) for j in JUDGES}
     majority, by_size, by_orient, rows = Counter(), defaultdict(list), defaultdict(list), []
     for pair_id, v in by_pair.items():
@@ -278,9 +290,10 @@ def results():
                      **{j: v.get(j) for j in JUDGES}, 'verdict': verdict})
     # Agreement is on the picture picked, so identical pictures under two letters agree.
     complete = [list(v.values()) for v in by_pair.values() if len(v) == len(JUDGES)]
-    failures = {e: sum(not p['engines'][e]['ok'] for p in PAIRS) for e in ENGINES}
-    seconds = {e: round(sorted(p['engines'][e]['seconds'] for p in PAIRS)[len(PAIRS) // 2], 2) for e in ENGINES}
-    return {'total_pairs': len(PAIRS), 'fully_judged': len(complete),
+    tasks = [p for p in PAIRS if p['id'] in keep]
+    failures = {e: sum(not p['engines'][e]['ok'] for p in tasks) for e in ENGINES}
+    seconds = {e: round(sorted(p['engines'][e]['seconds'] for p in tasks)[len(tasks) // 2], 2) if tasks else None for e in ENGINES}
+    return {'scope': scope, 'total_pairs': len(tasks), 'fully_judged': len(complete),
             'overall': tally([w for v in by_pair.values() for w in v.values()]),
             'per_judge': per_judge, 'majority': dict(majority),
             'kappa': fleiss_kappa(complete, sorted({w for r in complete for w in r})),

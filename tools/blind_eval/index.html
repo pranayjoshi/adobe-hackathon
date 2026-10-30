@@ -116,7 +116,7 @@ const NAMES = {pranay: 'Pranay', gaurav: 'Gaurav', kavya: 'Kavya'};  // the judg
 const ENGINE_NAMES = {pranay: "Pranay's engine", gaurav: "Gaurav's engine", merged: 'Merged engine'};
 const KEYS = {pranay: 'qwert', gaurav: 'asdfg', kavya: 'zxcvb'};  // one row of keys per judge
 const CHOICES = [['A', 'A best'], ['B', 'B best'], ['C', 'C best'], ['none', 'No clear winner'], ['all-bad', 'All bad']];
-const S = {blind: true, order: [], votes: {}, i: 0, pair: null, shownAt: 0, tab: 'judge', planned: 0, advance: null};
+const S = {blind: true, order: [], core: [], votes: {}, i: 0, pair: null, shownAt: 0, tab: 'judge', planned: 0, advance: null};
 
 async function api(path, opts) {
   const r = await fetch(path, opts);
@@ -144,7 +144,7 @@ for (const j of JUDGES) {
 async function refreshQueue() {
   const q = await api('/api/queue');
   const id = S.order[S.i];
-  S.order = q.order; S.votes = q.votes; S.planned = q.planned;
+  S.order = q.order; S.votes = q.votes; S.planned = q.planned; S.core = q.core || [];
   S.i = Math.max(0, S.order.indexOf(id));
 }
 
@@ -163,9 +163,13 @@ function setBlind(on) {
 }
 
 function progress() {
-  const n = S.order.filter(complete).length;
-  $('#progressText').textContent = `${n} / ${S.order.length} judged by all three` + (S.order.length < S.planned ? ` · ${S.planned - S.order.length} still generating` : '');
-  $('#progressBar').style.width = `${100 * n / (S.order.length || 1)}%`;
+  // The core set is judged first; the bar tracks it until it is done, then the whole study.
+  const n = S.order.filter(complete).length, core = S.core.filter(complete).length;
+  const coreLeft = S.core.length && core < S.core.length;
+  const extra = S.order.length < S.planned ? ` · ${S.planned - S.order.length} still generating` : '';
+  $('#progressText').textContent = coreLeft ? `Core set: ${core} / ${S.core.length} judged · ${n} / ${S.order.length} overall`
+    : `${n} / ${S.order.length} judged by all three` + (S.core.length ? ' · core set done' : '') + extra;
+  $('#progressBar').style.width = `${100 * (coreLeft ? core / S.core.length : n / (S.order.length || 1))}%`;
 }
 
 function paintVotes() {
@@ -263,7 +267,7 @@ function resultsGate() {
   const left = S.order.filter(id => !complete(id)).length;
   $('#main').replaceChildren(el('div', {class: 'gate'}, el('h2', {}, 'Results reveal the engine names'),
     el('p', {}, left > 0 ? `${left} published tasks still need votes. Seeing who wins now can bias the rest of the panel's votes.` : 'Every published task has all three votes.'),
-    el('button', {class: 'primary', onclick: results}, 'Show results'), ' ',
+    el('button', {class: 'primary', onclick: () => results()}, 'Show results'), ' ',
     el('button', {class: 'nav', onclick: () => showTab('judge')}, 'Back to judging')));
 }
 
@@ -286,12 +290,15 @@ function tallyTable(head, rows) {
   return el('table', {}, el('thead', {}, el('tr', {}, ...[head, 'Votes', ...ENGINES.map(e => ENGINE_NAMES[e] + '*'), 'No winner', 'All bad', ''].map(h => el('th', {}, h)))), tb);
 }
 
-async function results() {
-  const r = await api('/api/results');
+async function results(scope = S.core.length ? 'core' : 'all') {
+  const r = await api(`/api/results?scope=${scope}`);
+  const scopes = S.core.length ? el('div', {class: 'navs', style: 'margin-bottom:12px'},
+    ...[['core', `Core set (${S.core.length})`], ['all', 'All tasks']].map(([k, label]) =>
+      el('button', {class: k === scope ? 'primary' : 'nav', onclick: () => results(k)}, label))) : '';
   const legend = el('div', {class: 'legend'}, ...Object.keys(COLORS).map(k => el('span', {style: `--dot:${COLORS[k]}`}, LABEL[k])));
   const stat = (k, n) => el('div', {class: 'stat'}, el('div', {class: 'k'}, k), el('div', {class: 'n'}, n));
   const m = r.majority;
-  $('#main').replaceChildren(
+  $('#main').replaceChildren(scopes,
     el('div', {class: 'cards'},
       stat("Picked as best* · Pranay's / Gaurav's / Merged", ENGINES.map(e => pct(r.overall[e + '_share'])).join(' / ')),
       stat('Tasks judged by all three', `${r.fully_judged} / ${r.total_pairs}`),

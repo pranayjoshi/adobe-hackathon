@@ -93,11 +93,12 @@ def _merge(blocks, block_id: str, lead=None):
     return RigidBlock(members, block_id, lead.role, lead.label, lead.importance)
 
 
-def units(A):
+def units(A, scene: bool = True):
     """Layout units: our blocks, with the relations a floor plan must not break made rigid.
 
-    * Text and accents printed on the hero photo travel with it (scene unit), so copy
-      never leaves the picture it was legible on.
+    * With `scene`, text and accents printed on the hero photo travel with it (scene unit),
+      so copy never leaves the picture it was legible on. Without it, the copy is laid out
+      beside the photo: the variant for canvases too small for the whole scene.
     * A small accent (a rule, an icon, a price tag) joins the block it touches or nearly
       touches, so separators stay under their line and icons beside their label.
     Returns (units in reading order, accents that touch nothing, for the corners).
@@ -106,7 +107,7 @@ def units(A):
     hero = _hero(A)
     groups = {id(b): [b] for b in A.blocks}
     owner = {id(b): id(b) for b in A.blocks}
-    if hero is not None:
+    if hero is not None and scene:
         for b in A.blocks:
             if b is not hero and _inside(b.src_box, hero.src_box) >= 0.8:
                 groups[id(hero)] += groups.pop(id(b))
@@ -114,8 +115,9 @@ def units(A):
     loose = []
     for a in A.accents:
         best = min(A.blocks, key=lambda b: _gap(a.src_box, b.src_box), default=None)
-        if best is not None and (_gap(a.src_box, best.src_box) <= near or (hero is not None and _inside(a.src_box, hero.src_box) >= 0.8)):
-            target = id(hero) if hero is not None and _inside(a.src_box, hero.src_box) >= 0.8 else owner[id(best)]
+        on_hero = scene and hero is not None and _inside(a.src_box, hero.src_box) >= 0.8
+        if best is not None and (_gap(a.src_box, best.src_box) <= near or on_hero):
+            target = id(hero) if on_hero else owner[id(best)]
             groups[target].append(a)
         else:
             loose.append(a)
@@ -133,18 +135,20 @@ def _role_unit(us, role):
     return next((u for u in us if u.role == role), None)
 
 
-def _start(env: Env, template: str, name: str, description: str) -> Placement:
+def _start(env: Env, template: str, name: str, description: str, scene: bool = True) -> Placement:
+    if not scene:
+        template, name = template + '_free', name + ' · copy beside the photo'
     P = Placement('floorplan_' + template, 'Floor plan · ' + name, description)
     place_backdrop(env, P)
     return P
 
 
-def plan_column(env: Env) -> Placement | None:
+def plan_column(env: Env, scene: bool = True) -> Placement | None:
     A = env.A
-    us, loose = units(A)
+    us, loose = units(A, scene)
     if not us:
         return None
-    P = _start(env, 'column', 'column', 'Every block in reading order; minor items shrink before the headline.')
+    P = _start(env, 'column', 'column', 'Every block in reading order; minor items shrink before the headline.', scene)
     m = env.margin
     rect = Box(m, m, env.cw - 2 * m, env.ch - 2 * m)
     fit = fit_weighted(env, us, rect)
@@ -153,14 +157,14 @@ def plan_column(env: Env) -> Placement | None:
     return P
 
 
-def plan_split(env: Env) -> Placement | None:
+def plan_split(env: Env, scene: bool = True) -> Placement | None:
     A = env.A
-    us, loose = units(A)
+    us, loose = units(A, scene)
     hero = next((u for u in us if u.role in ('hero', 'image')), None)
     if hero is None or len(us) < 2:
         return None
     side = 'right' if hero.src_box.cx > A.sw / 2 else 'left'  # keep the hero on its source side
-    P = _start(env, 'split', f'image {side}', 'Hero on its original side; the copy column shrinks minor items first.')
+    P = _start(env, 'split', f'image {side}', 'Hero on its original side; the copy column shrinks minor items first.', scene)
     m, cw, ch = env.margin, env.cw, env.ch
     gutter = max(m, 0.03 * cw)
     inner_w, H = cw - 2 * m - gutter, ch - 2 * m
@@ -178,16 +182,16 @@ def plan_split(env: Env) -> Placement | None:
     return P
 
 
-def plan_row(env: Env) -> Placement | None:
+def plan_row(env: Env, scene: bool = True) -> Placement | None:
     """Banner: logo | copy | hero | call to action, every slot vertically centred."""
     A = env.A
-    us, loose = units(A)
+    us, loose = units(A, scene)
     hero = next((u for u in us if u.role in ('hero', 'image')), None)
     logo, cta = _role_unit(us, 'logo'), _role_unit(us, 'cta')
     copy = [u for u in us if u not in (hero, logo, cta)]
     if not copy:
         return None
-    P = _start(env, 'row', 'row', 'One row; the copy column gets the room left by logo, hero and button.')
+    P = _start(env, 'row', 'row', 'One row; the copy column gets the room left by logo, hero and button.', scene)
     m, cw, ch = env.margin, env.cw, env.ch
     W, H = cw - 2 * m, ch - 2 * m
     gutter = max(m, 0.02 * cw)
@@ -219,8 +223,23 @@ def plan_row(env: Env) -> Placement | None:
     return P
 
 
+def readable(P: Placement, A, cw: float, ch: float) -> bool:
+    """Every text stays readable: at least 8 px (2% of the short side on big canvases), or its
+    source size if that was smaller. Rigid units can shrink text far below the pipeline's
+    floors, so a plan that does is dropped rather than left to the ranking."""
+    floor = max(8.0, 0.02 * min(cw, ch))
+    for block in A.all_blocks():
+        for m in block.members:
+            patch = P.patches.get(m['id'], {})
+            if m['type'] == 'text' and (m.get('content') or '').strip() and 'font_size' in patch:
+                if patch['font_size'] < min(float(m['font_size']), floor):
+                    return False
+    return True
+
+
 def plans(A, cw: float, ch: float, emphasis: str = 'balanced') -> list[Placement]:
-    """The floor plans for this canvas shape (plus the neighbouring shape near a boundary)."""
+    """The readable floor plans for this canvas shape (plus the neighbouring shape near a
+    boundary), each with copy on the photo and, when that differs, copy beside it."""
     env = Env(A, float(cw), float(ch), emphasis)
     ratio = cw / ch
     makers = []
@@ -230,12 +249,15 @@ def plans(A, cw: float, ch: float, emphasis: str = 'balanced') -> list[Placement
         makers.append(plan_split)
     if ratio >= WIDE_MAX * 0.8:
         makers.append(plan_row)
+    with_scene = [len(u.ids) for u in units(A, True)[0]]
+    variants = (True, False) if with_scene != [len(u.ids) for u in units(A, False)[0]] else (True,)
     out = []
     for make in makers:
-        try:
-            p = make(env)
-        except (ValueError, ZeroDivisionError, ArithmeticError):
-            p = None
-        if p is not None:
-            out.append(p)
+        for scene in variants:
+            try:
+                p = make(env, scene)
+            except (ValueError, ZeroDivisionError, ArithmeticError):
+                p = None
+            if p is not None and readable(p, A, cw, ch):
+                out.append(p)
     return out
