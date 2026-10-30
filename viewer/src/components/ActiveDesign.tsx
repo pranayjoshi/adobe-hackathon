@@ -103,6 +103,7 @@ export function ActiveDesign({candidate:c,runId,targetIndex,locked,onCandidate,o
         <button className="chip" disabled={!runId||dirty||busy||!c.render} onClick={()=>vote('like')}>Like</button>
         <button className="chip" disabled={!runId||dirty||busy||!c.render} onClick={()=>vote('dislike')}>Needs work</button>
       </div>
+      {c.preview_verified===false&&<p role="status" className="text-amber-300">Unverified preview. A required original image is missing.</p>}
       <p role="status" className="text-zinc-400">{notice||'Select an element; drag, resize, or use arrow keys. Shift moves by ten pixels. Images keep their aspect ratio.'}</p>
       {c.controller&&<details><summary className="cursor-pointer text-emerald-300">Improvement history · {c.controller.events.length} events</summary><ol className="mt-3 max-h-64 space-y-2 overflow-auto">{c.controller.events.map((event,index)=><li key={index} className="border-l border-white/10 pl-3"><span className={event.type==='accepted'?'text-emerald-300':'text-zinc-400'}>{event.type}</span> · {event.operation||event.stage||event.stop_reason||event.reason}{event.verified?' · rendered and verified':''}</li>)}</ol></details>}
     </div>
