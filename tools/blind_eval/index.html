@@ -74,7 +74,7 @@ th{color:var(--muted);font-weight:500}
 .split{display:flex;height:10px;border-radius:9px;overflow:hidden;min-width:180px;background:var(--line)}
 .split i{display:block;height:100%}
 .legend{display:flex;gap:14px;font-size:12px;color:var(--muted);margin-bottom:10px;flex-wrap:wrap}
-.legend span::before{content:"";display:inline-block;width:10px;height:10px;border-radius:3px;margin-right:5px;vertical-align:-1px;background:var(--c)}
+.legend span::before{content:"";display:inline-block;width:10px;height:10px;border-radius:3px;margin-right:5px;vertical-align:-1px;background:var(--dot)}
 a{color:var(--accent)}
 @media (max-width:900px){.stage{grid-template-columns:1fr}.source{position:static;max-width:240px}.duel{grid-template-columns:1fr}.frame{height:40vh}.bar{width:90px}
   .panel{position:static}.panel .inner{grid-template-columns:1fr}main{padding-bottom:20px}.v kbd{display:none}.jrow{grid-template-columns:64px repeat(5,minmax(0,1fr)) 16px;gap:5px}.v{padding:8px 4px;font-size:12.5px}}
@@ -109,7 +109,7 @@ a{color:var(--accent)}
 const $ = s => document.querySelector(s);
 const store = {get(k){try{return localStorage.getItem(k)}catch{return null}}, set(k,v){try{localStorage.setItem(k,v)}catch{}}};
 const JUDGES = ['pranay', 'gaurav', 'kavya'];
-const NAMES = {pranay: 'Pranay', gaurav: 'Gaurav', kavya: 'Kavya', hybrid: 'Hybrid'};
+const NAMES = {pranay: 'Pranay', gaurav: 'Gaurav', kavya: 'Kavya', merged: 'Merged'};
 const KEYS = {pranay: 'qwert', gaurav: 'asdfg', kavya: 'zxcvb'};  // one row of keys per judge
 const CHOICES = [['A', 'A best'], ['B', 'B best'], ['C', 'C best'], ['none', 'No clear winner'], ['all-bad', 'All bad']];
 const S = {blind: store.get('bj.blind') !== '0', order: [], votes: {}, i: 0, pair: null, shownAt: 0, tab: 'judge', planned: 0, advance: null};
@@ -179,13 +179,14 @@ async function load(i) {
   const id = S.order[S.i];
   const p = await api(`/api/pair/${encodeURIComponent(id)}?reveal=${!S.blind}`);
   S.pair = p; S.votes[id] = p.votes; S.shownAt = performance.now();
-  const stack = p.target.width / p.target.height >= 2.2;
+  const shape = p.target.width / p.target.height >= 2.2 ? ' stack' : '';
   const card = side => {
     const s = p.sides[side];
     const label = el('div', {class: 'label'}, el('b', {}, side === 'A' ? 'Option A' : 'Option B'));
     if (s.engine) label.append(el('span', {class: 'engine'}, NAMES[s.engine]));
     const frame = el('div', {class: 'frame'});
-    if (s.ok) frame.append(el('img', {src: s.img, alt: `Option ${side}`, onclick: e => zoom(e.target.src)}));
+    if (s.ok) frame.append(el('img', {src: s.img, alt: `Option ${side}`, onclick: e => zoom(e.target.src),
+      onerror: e => e.target.replaceWith(el('div', {class: 'none'}, 'This picture changed since the page loaded.', el('br'), 'Reload the page before voting.'))}));
     else frame.append(el('div', {class: 'none'}, 'This engine produced no output for this size.', el('br'), 'Treat it as the worst option.'));
     return el('div', {class: 'card', 'data-side': side}, label, frame);
   };
@@ -195,15 +196,19 @@ async function load(i) {
     el('div', {class: 'stage'},
       el('div', {class: 'source'}, el('div', {class: 'label'}, el('span', {}, 'Original'), el('span', {}, `${p.source_size[0]}×${p.source_size[1]}`)),
         el('img', {src: p.source_img, alt: 'Original design', onclick: e => zoom(e.target.src)})),
-      el('div', {class: 'duel' + (stack ? ' stack' : '')}, card('A'), card('B'), card('C'))));
+      el('div', {class: 'duel' + shape}, card('A'), card('B'), card('C'))));
   $('#note').value = p.note || '';
   paintVotes();
   preload(S.i + 1);
 }
 
-function preload(i) {
+async function preload(i) {
+  // Picture URLs carry their fingerprint, so they come from the task itself.
   const id = S.order[(i + S.order.length) % S.order.length];
-  for (const w of ['A', 'B', 'C', 'source']) new Image().src = `/img/${encodeURIComponent(id)}/${w}`;
+  try {
+    const p = await api(`/api/pair/${encodeURIComponent(id)}`);
+    for (const url of [p.source_img, ...Object.values(p.sides).filter(s => s.ok).map(s => s.img)]) new Image().src = url;
+  } catch {}
 }
 
 async function vote(judge, choice) {
@@ -253,9 +258,9 @@ function resultsGate() {
     el('button', {class: 'nav', onclick: () => showTab('judge')}, 'Back to judging')));
 }
 
-const ENGINES = ['pranay', 'gaurav', 'hybrid'];
-const LABEL = {pranay: 'Pranay', gaurav: 'Gaurav', hybrid: 'Hybrid', none: 'No clear winner', 'all-bad': 'All bad'};
-const COLORS = {pranay: 'var(--a)', gaurav: 'var(--b)', hybrid: 'var(--c)', none: 'var(--muted)', 'all-bad': 'var(--line)'};
+const ENGINES = ['pranay', 'gaurav', 'merged'];
+const LABEL = {pranay: 'Pranay', gaurav: 'Gaurav', merged: 'Merged', none: 'No clear winner', 'all-bad': 'All bad'};
+const COLORS = {pranay: 'var(--a)', gaurav: 'var(--b)', merged: 'var(--c)', none: 'var(--muted)', 'all-bad': 'var(--line)'};
 function split(t) {
   // A shared picture credits several engines, so the bar is scaled to the sum of its parts.
   const keys = [...ENGINES, 'none', 'all-bad'], total = keys.reduce((a, k) => a + t[k], 0) || 1;
@@ -269,26 +274,25 @@ function tallyTable(head, rows) {
   for (const [name, t] of rows) tb.append(el('tr', {}, el('td', {}, name), el('td', {}, String(t.n)),
     ...ENGINES.map(e => el('td', {}, `${t[e]} (${pct(t[e + '_share'])})`)),
     el('td', {}, String(t.none)), el('td', {}, String(t['all-bad'])), el('td', {}, split(t))));
-  return el('table', {}, el('thead', {}, el('tr', {}, ...[head, 'Votes', 'Pranay*', 'Gaurav*', 'Hybrid*', 'No winner', 'All bad', ''].map(h => el('th', {}, h)))), tb);
+  return el('table', {}, el('thead', {}, el('tr', {}, ...[head, 'Votes', 'Pranay*', 'Gaurav*', 'Merged*', 'No winner', 'All bad', ''].map(h => el('th', {}, h)))), tb);
 }
 
 async function results() {
   const r = await api('/api/results');
-  const legend = el('div', {class: 'legend'}, ...Object.keys(COLORS).map(k => el('span', {style: `--c:${COLORS[k]}`}, LABEL[k])));
+  const legend = el('div', {class: 'legend'}, ...Object.keys(COLORS).map(k => el('span', {style: `--dot:${COLORS[k]}`}, LABEL[k])));
   const stat = (k, n) => el('div', {class: 'stat'}, el('div', {class: 'k'}, k), el('div', {class: 'n'}, n));
   const m = r.majority;
   $('#main').replaceChildren(
     el('div', {class: 'cards'},
-      stat('Picked as best* · Pranay / Gaurav / Hybrid', ENGINES.map(e => pct(r.overall[e + '_share'])).join(' / ')),
+      stat('Picked as best* · Pranay / Gaurav / Merged', ENGINES.map(e => pct(r.overall[e + '_share'])).join(' / ')),
       stat('Tasks judged by all three', `${r.fully_judged} / ${r.total_pairs}`),
-      stat('Majority wins · Pranay / Gaurav / Hybrid', ENGINES.map(e => Object.entries(m).filter(([k]) => k.split(',').includes(e)).reduce((a, [, n]) => a + n, 0)).join(' / ')),
+      stat('Majority wins · Pranay / Gaurav / Merged', ENGINES.map(e => Object.entries(m).filter(([k]) => k.split(',').includes(e)).reduce((a, [, n]) => a + n, 0)).join(' / ')),
       stat("Agreement (Fleiss' κ)", r.kappa == null ? '–' : String(r.kappa))),
     el('section', {class: 'box'}, el('h3', {}, 'By judge'), legend, tallyTable('Judge', Object.entries(r.per_judge).map(([j, t]) => [NAMES[j], t]))),
     el('section', {class: 'box'}, el('h3', {}, 'By target size'), tallyTable('Target', Object.entries(r.by_size))),
     el('section', {class: 'box'}, el('h3', {}, 'By source orientation'), tallyTable('Source', Object.entries(r.by_orientation))),
     el('section', {class: 'box'}, el('h3', {}, 'Engines'),
       el('p', {}, `No-output cases: ${ENGINES.map(e => `${LABEL[e]} ${r.engine_failures[e]}`).join(', ')}. Median seconds per resize: ${ENGINES.map(e => `${LABEL[e]} ${r.median_seconds[e]}`).join(', ')}. Majority over judged tasks: no clear winner ${m.none || 0}, all bad ${m['all-bad'] || 0}, split ${m.split || 0}.`),
-      el('p', {}, `The hybrid repairs both layouts and keeps the one with fewer defects: it built on Pranay's ${r.hybrid_built_on.pranay} times and on Gaurav's ${r.hybrid_built_on.gaurav} times. Votes that agree with its choice: ${pct(r.chooser_agreement)}.`),
       el('p', {style: 'color:var(--muted);margin:0'}, '* Share of votes that picked a layout. When two engines made the same picture, a vote for it counts for both, so shares can add up to more than 100%. ', el('a', {href: '/api/export.csv'}, 'Download every vote as CSV'))));
 }
 

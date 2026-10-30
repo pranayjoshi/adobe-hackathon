@@ -1,4 +1,4 @@
-"""Blind judging of our engine, Gaurav's and the hybrid by a panel of three, voting together.
+"""Blind judging of our engine, Gaurav's and the merged engine by a panel of three.
 
 Build the study first with `tools.blind_eval.build`, then serve it on the local network:
     .venv/bin/uvicorn tools.blind_eval.app:app --host 0.0.0.0 --port 8790
@@ -6,6 +6,10 @@ Build the study first with `tools.blind_eval.build`, then serve it on the local 
 Engine names never reach the browser unless a viewer turns blind mode off or opens the
 results, and each task's A/B/C order is fixed by a seeded shuffle in pairs.json. When two
 engines produce the same picture, a vote for it counts for both.
+
+Pictures are served under URLs that carry their own fingerprint, and votes are stored by the
+engines they credit, so neither a browser cache nor a rebuilt study can attach a picture or
+a past vote to the wrong option.
 """
 from __future__ import annotations
 
@@ -30,7 +34,7 @@ ROOT = Path(__file__).resolve().parents[2]
 WORK = Path(os.environ.get('BLIND_EVAL_DIR') or ROOT / 'work/blind-eval')
 HERE = Path(__file__).parent
 JUDGES = ('pranay', 'gaurav', 'kavya')
-ENGINES = ('pranay', 'gaurav', 'hybrid')
+ENGINES = ('pranay', 'gaurav', 'merged')
 OPTIONS = ('A', 'B', 'C')
 CHOICES = (*OPTIONS, 'none', 'all-bad')
 
@@ -100,6 +104,14 @@ def winner_of(pair, choice):
     return ','.join(e for e in ENGINES if picked and pair['engines'][e]['render'] == picked)
 
 
+def letter_of(pair, winner):
+    """The option now showing the picture a stored vote picked (votes outlive option order)."""
+    if winner in ('none', 'all-bad'):
+        return winner
+    names = winner.split(',')
+    return next((side for side in OPTIONS if pair['options'][side] in names), None)
+
+
 def check_judge(judge):
     if judge not in JUDGES:
         raise HTTPException(404, 'Unknown judge')
@@ -134,12 +146,15 @@ def pair(pair_id: str, reveal: bool = False):
         raise HTTPException(404, 'Pair not found')
     s = SAMPLES[p['sample']]
     with db() as con:
-        votes = votes_by_pair(con, pair_id)[pair_id]
+        votes = {j: letter_of(p, w) for j, w in con.execute('select judge, winner from votes where pair=?', (pair_id,))}
         note = con.execute("select note from votes where pair=? and note != '' order by at desc", (pair_id,)).fetchone()
+    def picture(side):
+        meta = p['engines'][p['options'][side]]
+        return {'ok': meta['ok'], 'img': f"/img/{pair_id}/{side}?v={meta['render']}"}
     out = {'id': pair_id, 'title': s['title'], 'source_size': [s['width'], s['height']],
            'target': {'label': p['label'], **p['target_canvas']},
-           'sides': {side: {'ok': p['engines'][p['options'][side]]['ok'], 'img': f'/img/{pair_id}/{side}'} for side in OPTIONS},
-           'source_img': f"/img/{pair_id}/source", 'votes': votes, 'note': note[0] if note else ''}
+           'sides': {side: picture(side) for side in OPTIONS},
+           'source_img': f"/img/{pair_id}/source?v={p['sample']}", 'votes': votes, 'note': note[0] if note else ''}
     if reveal:
         for side in OPTIONS:
             out['sides'][side]['engine'] = p['options'][side]
@@ -147,17 +162,24 @@ def pair(pair_id: str, reveal: bool = False):
 
 
 @app.get('/img/{pair_id}/{which}')
-def image(pair_id: str, which: Literal['A', 'B', 'C', 'source']):
+def image(pair_id: str, which: Literal['A', 'B', 'C', 'source'], v: str = ''):
     pairs()
     p = BY_ID.get(pair_id)
     if p is None:
         raise HTTPException(404, 'Pair not found')
-    name = f"{p['sample']}__source.png" if which == 'source' else f"{pair_id}__{p['options'][which]}.png"
-    path = WORK / 'img' / name
+    if which == 'source':
+        path, expected = WORK / 'img' / f"{p['sample']}__source.png", p['sample']
+    else:
+        path, expected = WORK / 'img' / f"{pair_id}__{p['options'][which]}.png", p['engines'][p['options'][which]]['render']
+    if v != expected:  # an old page asking for a picture this option no longer shows
+        raise HTTPException(409, 'This picture has changed; reload the page')
     if not path.is_file():
         raise HTTPException(404, 'No output')
-    # The file name contains the engine, so it is never sent: only the bytes are.
-    return Response(path.read_bytes(), media_type='image/png', headers={'Cache-Control': 'private, max-age=86400'})
+    if which != 'source' and hashlib.sha256(path.read_bytes()).hexdigest()[:16] != expected:
+        raise HTTPException(409, 'Picture differs from the published study; rebuild it')
+    # The file name contains the engine, so it is never sent: only the bytes are. The URL
+    # carries the picture's fingerprint, so caching it can never show the wrong picture.
+    return Response(path.read_bytes(), media_type='image/png', headers={'Cache-Control': 'private, max-age=86400, immutable'})
 
 
 class Vote(BaseModel):
@@ -233,7 +255,6 @@ def results():
     pairs()
     per_judge = {j: tally([v[j] for v in by_pair.values() if j in v]) for j in JUDGES}
     majority, by_size, by_orient, rows = Counter(), defaultdict(list), defaultdict(list), []
-    chooser = Counter()
     for pair_id, v in by_pair.items():
         p, s = BY_ID[pair_id], SAMPLES[BY_ID[pair_id]['sample']]
         verdict = verdict_of(list(v.values()))
@@ -241,31 +262,21 @@ def results():
             majority[verdict] += 1
         ratio = s['width'] / s['height']
         orient = 'square' if .95 <= ratio <= 1.05 else 'landscape' if ratio > 1 else 'portrait'
-        # Did the hybrid keep the layout the judge preferred? Credit the hybrid's own picture
-        # and the engine it built on; a vote for only the other engine is a miss.
-        kept = p['engines']['hybrid'].get('chosen')
         for w in v.values():
             by_size[p['label']].append(w)
             by_orient[orient].append(w)
-            names = set(w.split(','))
-            if kept and names & set(ENGINES):
-                chooser['agree' if names & {'hybrid', kept} else 'disagree'] += 1
         rows.append({'pair': pair_id, 'title': s['title'], 'target': p['label'], **p['options'],
                      **{j: v.get(j) for j in JUDGES}, 'verdict': verdict})
     # Agreement is on the picture picked, so identical pictures under two letters agree.
     complete = [list(v.values()) for v in by_pair.values() if len(v) == len(JUDGES)]
     failures = {e: sum(not p['engines'][e]['ok'] for p in PAIRS) for e in ENGINES}
     seconds = {e: round(sorted(p['engines'][e]['seconds'] for p in PAIRS)[len(PAIRS) // 2], 2) for e in ENGINES}
-    kept = Counter(p['engines']['hybrid'].get('chosen') for p in PAIRS)
-    judged = chooser['agree'] + chooser['disagree']
     return {'total_pairs': len(PAIRS), 'fully_judged': len(complete),
             'overall': tally([w for v in by_pair.values() for w in v.values()]),
             'per_judge': per_judge, 'majority': dict(majority),
             'kappa': fleiss_kappa(complete, sorted({w for r in complete for w in r})),
             'by_size': {k: tally(v) for k, v in sorted(by_size.items())},
             'by_orientation': {k: tally(v) for k, v in sorted(by_orient.items())},
-            'hybrid_built_on': {e: kept[e] for e in ('pranay', 'gaurav')},
-            'chooser_agreement': round(chooser['agree'] / judged, 3) if judged else None,
             'engine_failures': failures, 'median_seconds': seconds, 'rows': rows}
 
 
@@ -276,9 +287,9 @@ def export():
     w.writerow(['judge', 'pair', 'sample', 'target', 'A', 'B', 'C', 'choice', 'winner', 'note', 'seconds', 'at', 'blind'])
     pairs()
     with db() as con:
-        for judge, pair_id, choice, winner, note, secs, at, blind in con.execute('select * from votes order by at'):
+        for judge, pair_id, _, winner, note, secs, at, blind in con.execute('select * from votes order by at'):
             p = BY_ID[pair_id]
             o = p['options']
-            w.writerow([judge, pair_id, p['sample'], p['label'], o['A'], o['B'], o['C'], choice, winner, note, secs, at, blind])
+            w.writerow([judge, pair_id, p['sample'], p['label'], o['A'], o['B'], o['C'], letter_of(p, winner), winner, note, secs, at, blind])
     return Response(buf.getvalue(), media_type='text/csv',
                     headers={'Content-Disposition': 'attachment; filename="blind-votes.csv"'})

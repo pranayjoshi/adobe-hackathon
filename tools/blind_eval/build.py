@@ -1,11 +1,12 @@
-"""Build the blind study: 200 Crello designs x 5 target sizes, our engine, Gaurav's and the hybrid.
+"""Build the blind study: 200 Crello designs x 5 target sizes; our engine, Gaurav's and the
+merged engine (merged/), three blind options per task.
 
 Run from the repo root (each stage is resumable and skips finished work):
     .venv/bin/python -m tools.blind_eval.build --gaurav ../chameleon-competitors/gaurav/chameleon
 
-Stages: select designs and sizes -> run both engines -> hybrid (repair + choose, from the two
-cached runs) -> render -> write pairs.json with three blind options per task.
-Add --publish to render and publish only the finished pairs, so judging can start early.
+Stages: select designs and sizes -> run the engines -> render -> write pairs.json -> verify
+that every published picture is the render of the layout its option names.
+Add --publish to render and publish only the finished tasks, so judging can start early.
 The design pool comes from `tools.build_crello_catalog --output work/blind-eval/crello`.
 """
 from __future__ import annotations
@@ -26,8 +27,7 @@ sys.path.insert(0, str(ROOT))
 from lite.app import PRESETS, SAME_SHAPE  # noqa: E402  the 14 sizes the apps offer
 
 WORK = ROOT / 'work/blind-eval'
-RUNNERS = ('pranay', 'gaurav')        # engines run by worker.py
-ENGINES = (*RUNNERS, 'hybrid')         # everything the judges compare
+ENGINES = ('pranay', 'gaurav', 'merged')   # run by worker.py, compared by the judges
 SEED = 'chameleon-blind-v1'
 
 
@@ -88,7 +88,9 @@ def source_of(sample):
 
 def run(tasks, roots, shards):
     procs, renderer_root = [], roots['pranay']
-    for name in RUNNERS:
+    for name in ENGINES:
+        if name not in roots:
+            continue
         out = WORK / 'runs' / name
         out.mkdir(parents=True, exist_ok=True)
         todo = [t for t in tasks if not (out / f"{t['id']}.json").exists()]
@@ -108,28 +110,9 @@ def run(tasks, roots, shards):
         p.wait()
 
 
-def hybridize(tasks):
-    """The hybrid's layout for each task, from the two engines' cached results.
-
-    Identical to hybrid.resize, which runs both engines live, without running them again.
-    """
-    from hybrid.combine import choose
-    out = WORK / 'runs' / 'hybrid'
-    out.mkdir(parents=True, exist_ok=True)
-    picks = Counter()
-    for t in tasks:
-        recs = {n: json.loads((WORK / 'runs' / n / f"{t['id']}.json").read_text()) for n in RUNNERS}
-        try:
-            res = choose(source_of(t['sample']), {n: r['design'] if r['ok'] else None for n, r in recs.items()},
-                         ROOT / 'brand_kit/assets')
-            rec = {'ok': True, 'design': res['design'], 'chosen': res['chosen'], 'report': res['report']}
-            picks[res['chosen']] += 1
-        except ValueError as exc:
-            rec = {'ok': False, 'error': str(exc)}
-        # Both engines run side by side, so the hybrid takes as long as the slower one.
-        rec['seconds'] = max(r['seconds'] for r in recs.values())
-        (out / f"{t['id']}.json").write_text(json.dumps(rec))
-    print(f'Hybrid built from: {dict(picks)}')
+def fingerprint(design):
+    """Hash of a layout, stored beside its render so a stale picture is never reused."""
+    return hashlib.sha256(json.dumps(design, sort_keys=True).encode()).hexdigest()[:16]
 
 
 def render_one(job):
@@ -137,21 +120,30 @@ def render_one(job):
     design, png = job
     try:
         render_design_to_png(design, ROOT / 'brand_kit/assets', png, max_size=900)
+        png.with_suffix('.layout').write_text(fingerprint(design))
         return None
     except Exception as exc:  # a broken output is shown as "no output", never hidden
+        png.unlink(missing_ok=True)
         return f'{png.name}: {exc}'
 
 
 def render(tasks):
+    """Render every output whose picture is missing or was drawn from a different layout."""
     img = WORK / 'img'
     img.mkdir(exist_ok=True)
     jobs = [(source_of(s), img / f'{s}__source.png') for s in {t['sample'] for t in tasks}]
     for name in ENGINES:
         for t in tasks:
             rec = json.loads((WORK / 'runs' / name / f"{t['id']}.json").read_text())
+            png = img / f"{t['id']}__{name}.png"
             if rec['ok']:
-                jobs.append((rec['design'], img / f"{t['id']}__{name}.png"))
-    jobs = [j for j in jobs if not j[1].exists()]
+                jobs.append((rec['design'], png))
+            else:  # an engine that now refuses must not keep showing an old picture
+                png.unlink(missing_ok=True)
+    def current(design, png):
+        stamp = png.with_suffix('.layout')
+        return png.exists() and stamp.exists() and stamp.read_text() == fingerprint(design)
+    jobs = [j for j in jobs if not current(*j)]
     with ProcessPoolExecutor(8) as pool:
         errors = [e for e in pool.map(render_one, jobs, chunksize=8) if e]
     print(f'Rendered {len(jobs) - len(errors)} images, {len(errors)} failed', *errors[:10], sep='\n')
@@ -160,28 +152,72 @@ def render(tasks):
 def pairs(tasks):
     """Shuffle each task's options by a seeded draw so names never leak through position.
 
-    Each engine's render is fingerprinted: when two engines produce the same picture (the
-    hybrid often keeps one engine's layout unchanged), a vote for it counts for both.
+    Each option records the fingerprint of its layout and of its picture: the judge serves
+    pictures under a URL that includes the picture fingerprint, so a browser can never show
+    a cached picture from an earlier build under a new option letter.
     """
     out = []
     for t in tasks:
         order = list(ENGINES)
-        random.Random(digest(t['id'], 'order')).shuffle(order)
+        random.Random(digest(t['id'], 'order', *ENGINES)).shuffle(order)
         meta = {}
         for name in ENGINES:
             rec = json.loads((WORK / 'runs' / name / f"{t['id']}.json").read_text())
             png = WORK / 'img' / f"{t['id']}__{name}.png"
             ok = rec['ok'] and png.exists()
             meta[name] = {'ok': ok, 'seconds': rec['seconds'],
+                          'layout': fingerprint(rec['design']) if rec['ok'] else None,
                           'render': hashlib.sha256(png.read_bytes()).hexdigest()[:16] if ok else None}
-            if name == 'hybrid' and ok:
-                meta[name]['chosen'] = rec['chosen']
         out.append({**t, 'options': dict(zip('ABC', order)), 'engines': meta})
     tmp = WORK / 'pairs.tmp'  # the judge app may be reading the previous file
     tmp.write_text(json.dumps(out, indent=1))
     tmp.replace(WORK / 'pairs.json')
     fails = {n: sum(not p['engines'][n]['ok'] for p in out) for n in ENGINES}
-    print(f'{len(out)} pairs written; failed outputs per engine: {fails}')
+    print(f'{len(out)} tasks written; failed outputs per engine: {fails}')
+
+
+def verify(sample=40):
+    """Check every published option against the data it claims to show. Exits non-zero on any
+    mismatch: a wrong picture under a name would silently corrupt every vote on it."""
+    tasks = json.loads((WORK / 'pairs.json').read_text())
+    problems = []
+    for t in tasks:
+        if sorted(t['options'].values()) != sorted(ENGINES):
+            problems.append(f"{t['id']}: options {t['options']}")
+        source = source_of(t['sample'])
+        for name, meta in t['engines'].items():
+            rec = json.loads((WORK / 'runs' / name / f"{t['id']}.json").read_text())
+            png = WORK / 'img' / f"{t['id']}__{name}.png"
+            if meta['ok'] != (rec['ok'] and png.exists()):
+                problems.append(f"{t['id']}/{name}: ok flag")
+            if not meta['ok']:
+                continue
+            d = rec['design']
+            if fingerprint(d) != meta['layout'] or png.with_suffix('.layout').read_text() != meta['layout']:
+                problems.append(f"{t['id']}/{name}: picture not drawn from this layout")
+            if hashlib.sha256(png.read_bytes()).hexdigest()[:16] != meta['render']:
+                problems.append(f"{t['id']}/{name}: picture changed since publishing")
+            if d['canvas'] != t['target_canvas'] or sorted(e['id'] for e in d['elements']) != sorted(e['id'] for e in source['elements']):
+                problems.append(f"{t['id']}/{name}: canvas or element ids differ from the task")
+    # Spot-check that a fresh render of the layout reproduces the published picture.
+    import tempfile
+    from PIL import Image, ImageChops
+    from renderer.converter.convert import render_design_to_png
+    rng = random.Random(digest('verify'))
+    checks = [(t, n) for t in rng.sample(tasks, min(sample, len(tasks))) for n in ENGINES if t['engines'][n]['ok']]
+    with tempfile.TemporaryDirectory() as tmp:
+        for t, name in checks:
+            design = json.loads((WORK / 'runs' / name / f"{t['id']}.json").read_text())['design']
+            fresh = Path(tmp) / 'fresh.png'
+            render_design_to_png(design, ROOT / 'brand_kit/assets', fresh, max_size=900)
+            a = Image.open(fresh).convert('RGB')
+            b = Image.open(WORK / 'img' / f"{t['id']}__{name}.png").convert('RGB')
+            if a.size != b.size or ImageChops.difference(a, b).getbbox() is not None:
+                problems.append(f"{t['id']}/{name}: re-render differs from published picture")
+    print(f'Verified {len(tasks)} tasks x {len(ENGINES)} engines; re-rendered {len(checks)} pictures; '
+          f'{len(problems)} problems', *problems[:20], sep='\n')
+    if problems:
+        raise SystemExit(1)
 
 
 if __name__ == '__main__':
@@ -191,18 +227,17 @@ if __name__ == '__main__':
     ap.add_argument('--count', type=int, default=200)
     ap.add_argument('--shards-pranay', type=int, default=4)
     ap.add_argument('--shards-gaurav', type=int, default=2)
+    ap.add_argument('--shards-merged', type=int, default=5)
     ap.add_argument('--publish', action='store_true',
-                    help='only render and publish the pairs both engines have finished (while runs continue)')
+                    help='only render and publish the tasks every engine has finished (while runs continue)')
     a = ap.parse_args()
     tasks = select(a.count)
     if a.publish:
-        done = [t for t in tasks if all((WORK / 'runs' / n / f"{t['id']}.json").exists() for n in RUNNERS)]
-        hybridize(done)
-        render(done)
-        pairs(done)
-        raise SystemExit
-    run(tasks, {'pranay': a.pranay.resolve(), 'gaurav': a.gaurav.resolve()},
-        {'pranay': a.shards_pranay, 'gaurav': a.shards_gaurav})
-    hybridize(tasks)
+        tasks = [t for t in tasks if all((WORK / 'runs' / n / f"{t['id']}.json").exists() for n in ENGINES)]
+    else:
+        # The merged engine runs on our engine snapshot, with merged/ from this repository.
+        run(tasks, {'pranay': a.pranay.resolve(), 'gaurav': a.gaurav.resolve(), 'merged': a.pranay.resolve()},
+            {'pranay': a.shards_pranay, 'gaurav': a.shards_gaurav, 'merged': a.shards_merged})
     render(tasks)
     pairs(tasks)
+    verify()

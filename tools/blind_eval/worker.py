@@ -2,6 +2,8 @@
 
 Usage: python worker.py <engine_name> <engine_root> <renderer_root> <shard.json> <out_dir>
 
+`merged` runs merged.resize (this repo) on top of the engine at <engine_root>.
+
 Both engines ship a top-level package called `engine`, so each one runs in a separate
 process. Every engine is given the same renderer (`renderer_root`, which has the dataset
 font manifest) and the same brand kit, so neither is judged on missing fonts or assets.
@@ -25,7 +27,12 @@ import renderer.converter.brand_fonts  # noqa: E402,F401
 sys.path.remove(str(renderer_root))
 sys.path.insert(0, str(engine_root))
 
-from engine.resize import resize  # noqa: E402
+if name == 'merged':
+    # The merged engine (merged/) runs on the engine snapshot at engine_root.
+    sys.path.append(str(Path(__file__).resolve().parents[2]))
+    from merged.resize import resize  # noqa: E402
+else:
+    from engine.resize import resize  # noqa: E402
 
 if name == 'gaurav':
     # Point the competitor's measuring and judging at the shared fonts and assets.
