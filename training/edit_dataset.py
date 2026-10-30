@@ -166,6 +166,8 @@ def _overall(candidate):
 def collect(corpus,out,targets,limit=None,refine_seconds=4.0,min_overall=80.0,max_states=2,skip_files=()):
     """Run the deterministic engine on non-suite sources; one demonstration per (source, target)."""
     from engine.pipeline import generate
+    from training.families import refuse_qa_corpus
+    refuse_qa_corpus(corpus)
     excl=suite_exclusions();rev=code_revision();counts=Counter();out=Path(out);out.parent.mkdir(parents=True,exist_ok=True)
     options={'render':False,'refine_seconds':float(refine_seconds)}
     paths=[p for p in sorted(Path(corpus).glob('*.json')) if p.stem not in set(skip_files)]
