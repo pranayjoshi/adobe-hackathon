@@ -21,7 +21,7 @@ from engine.contracts import design_hash
 from training.reward import assess, reward_from, version_identity
 
 
-from training.families import split_of, resolve_family, build_split_manifest, immutable_signature
+from training.families import split_of, resolve_family, build_split_manifest, immutable_signature, refuse_qa_corpus
 
 def _hash(design):
     return hashlib.sha256(json.dumps(design, sort_keys=True).encode()).hexdigest()
@@ -47,6 +47,7 @@ def _row(source, target, A, image, family, options=None, locks=None):
 
 def export(corpus, out, families=None, formats=None, min_overall=85.0, margin=0.05, allow_samples=False, limit=None, max_candidates=8, split_manifest=None):
     from engine.pipeline import generate
+    refuse_qa_corpus(corpus)
     out.mkdir(parents=True, exist_ok=True); images = out / 'images'; images.mkdir(exist_ok=True)
     banned = set() if allow_samples else public_samples(); files = {}; counts = Counter()
     # The repeatedly reviewed visual panel is never training data, even when public samples are allowed.
