@@ -1,10 +1,11 @@
-"""Blind A/B judging of the two engines by a panel of three, voting together on each pair.
+"""Blind judging of our engine, Gaurav's and the hybrid by a panel of three, voting together.
 
 Build the study first with `tools.blind_eval.build`, then serve it on the local network:
     .venv/bin/uvicorn tools.blind_eval.app:app --host 0.0.0.0 --port 8790
 
 Engine names never reach the browser unless a viewer turns blind mode off or opens the
-results, and each pair's left/right order is fixed by a seeded coin in pairs.json.
+results, and each task's A/B/C order is fixed by a seeded shuffle in pairs.json. When two
+engines produce the same picture, a vote for it counts for both.
 """
 from __future__ import annotations
 
@@ -29,8 +30,9 @@ ROOT = Path(__file__).resolve().parents[2]
 WORK = Path(os.environ.get('BLIND_EVAL_DIR') or ROOT / 'work/blind-eval')
 HERE = Path(__file__).parent
 JUDGES = ('pranay', 'gaurav', 'kavya')
-ENGINES = ('pranay', 'gaurav')
-CHOICES = ('A', 'B', 'tie', 'both-bad')
+ENGINES = ('pranay', 'gaurav', 'hybrid')
+OPTIONS = ('A', 'B', 'C')
+CHOICES = (*OPTIONS, 'none', 'all-bad')
 
 app = FastAPI(title='Chameleon Blind Judge', version='1.0')
 _lock = threading.Lock()
@@ -91,7 +93,11 @@ def votes_by_pair(con, pair_id=None):
 
 
 def winner_of(pair, choice):
-    return pair[choice] if choice in ('A', 'B') else choice
+    """The engines a vote credits: every engine whose render is the picked picture."""
+    if choice not in OPTIONS:
+        return choice
+    picked = pair['engines'][pair['options'][choice]]['render']
+    return ','.join(e for e in ENGINES if picked and pair['engines'][e]['render'] == picked)
 
 
 def check_judge(judge):
@@ -132,21 +138,21 @@ def pair(pair_id: str, reveal: bool = False):
         note = con.execute("select note from votes where pair=? and note != '' order by at desc", (pair_id,)).fetchone()
     out = {'id': pair_id, 'title': s['title'], 'source_size': [s['width'], s['height']],
            'target': {'label': p['label'], **p['target_canvas']},
-           'sides': {side: {'ok': p['engines'][p[side]]['ok'], 'img': f'/img/{pair_id}/{side}'} for side in 'AB'},
+           'sides': {side: {'ok': p['engines'][p['options'][side]]['ok'], 'img': f'/img/{pair_id}/{side}'} for side in OPTIONS},
            'source_img': f"/img/{pair_id}/source", 'votes': votes, 'note': note[0] if note else ''}
     if reveal:
-        for side in 'AB':
-            out['sides'][side]['engine'] = p[side]
+        for side in OPTIONS:
+            out['sides'][side]['engine'] = p['options'][side]
     return out
 
 
 @app.get('/img/{pair_id}/{which}')
-def image(pair_id: str, which: Literal['A', 'B', 'source']):
+def image(pair_id: str, which: Literal['A', 'B', 'C', 'source']):
     pairs()
     p = BY_ID.get(pair_id)
     if p is None:
         raise HTTPException(404, 'Pair not found')
-    name = f"{p['sample']}__source.png" if which == 'source' else f"{pair_id}__{p[which]}.png"
+    name = f"{p['sample']}__source.png" if which == 'source' else f"{pair_id}__{p['options'][which]}.png"
     path = WORK / 'img' / name
     if not path.is_file():
         raise HTTPException(404, 'No output')
@@ -157,7 +163,7 @@ def image(pair_id: str, which: Literal['A', 'B', 'source']):
 class Vote(BaseModel):
     judge: str
     pair: str
-    choice: Literal['A', 'B', 'tie', 'both-bad']
+    choice: Literal['A', 'B', 'C', 'none', 'all-bad']
     note: str = Field(default='', max_length=500)
     seconds: float = Field(default=0, ge=0, le=86400)
     blind: bool = True
@@ -197,11 +203,25 @@ def fleiss_kappa(rows, categories):
     return None if pe == 1 else round((sum(p_i) / len(rows) - pe) / (1 - pe), 3)
 
 
-def tally(votes):
-    c = Counter(votes)
-    decided = c['pranay'] + c['gaurav']
-    return {**{k: c[k] for k in (*ENGINES, 'tie', 'both-bad')}, 'n': len(votes),
-            'pranay_share': round(c['pranay'] / decided, 3) if decided else None}
+def tally(winners):
+    """Wins per engine (a shared picture credits each engine that made it), plus no-pick votes."""
+    c = Counter()
+    for w in winners:
+        c.update(w.split(',') if w not in ('none', 'all-bad') else [w])
+    picked = sum(w not in ('none', 'all-bad') for w in winners)
+    return {**{k: c[k] for k in (*ENGINES, 'none', 'all-bad')}, 'n': len(winners),
+            **{f'{e}_share': round(c[e] / picked, 3) if picked else None for e in ENGINES}}
+
+
+def verdict_of(winners):
+    """The 2-of-3 verdict: engines picked by a majority, else the majority's no-pick, else split."""
+    backed = [e for e in ENGINES if sum(e in w.split(',') for w in winners) >= 2]
+    if backed:
+        return ','.join(backed)
+    if len(winners) < len(JUDGES):
+        return 'pending'
+    top, n = Counter(winners).most_common(1)[0]
+    return top if n >= 2 and top in ('none', 'all-bad') else 'split'
 
 
 @app.get('/api/results')
@@ -213,27 +233,39 @@ def results():
     pairs()
     per_judge = {j: tally([v[j] for v in by_pair.values() if j in v]) for j in JUDGES}
     majority, by_size, by_orient, rows = Counter(), defaultdict(list), defaultdict(list), []
+    chooser = Counter()
     for pair_id, v in by_pair.items():
         p, s = BY_ID[pair_id], SAMPLES[BY_ID[pair_id]['sample']]
-        top, n = Counter(v.values()).most_common(1)[0]
-        verdict = top if n >= 2 else 'split' if len(v) == len(JUDGES) else 'pending'
+        verdict = verdict_of(list(v.values()))
         if verdict != 'pending':
             majority[verdict] += 1
         ratio = s['width'] / s['height']
         orient = 'square' if .95 <= ratio <= 1.05 else 'landscape' if ratio > 1 else 'portrait'
+        # Did the hybrid keep the layout the judge preferred? Credit the hybrid's own picture
+        # and the engine it built on; a vote for only the other engine is a miss.
+        kept = p['engines']['hybrid'].get('chosen')
         for w in v.values():
             by_size[p['label']].append(w)
             by_orient[orient].append(w)
-        rows.append({'pair': pair_id, 'title': s['title'], 'target': p['label'], 'A': p['A'], 'B': p['B'],
+            names = set(w.split(','))
+            if kept and names & set(ENGINES):
+                chooser['agree' if names & {'hybrid', kept} else 'disagree'] += 1
+        rows.append({'pair': pair_id, 'title': s['title'], 'target': p['label'], **p['options'],
                      **{j: v.get(j) for j in JUDGES}, 'verdict': verdict})
+    # Agreement is on the picture picked, so identical pictures under two letters agree.
     complete = [list(v.values()) for v in by_pair.values() if len(v) == len(JUDGES)]
     failures = {e: sum(not p['engines'][e]['ok'] for p in PAIRS) for e in ENGINES}
     seconds = {e: round(sorted(p['engines'][e]['seconds'] for p in PAIRS)[len(PAIRS) // 2], 2) for e in ENGINES}
-    return {'total_pairs': len(PAIRS), 'fully_judged': len(complete), 'overall': tally([w for v in by_pair.values() for w in v.values()]),
+    kept = Counter(p['engines']['hybrid'].get('chosen') for p in PAIRS)
+    judged = chooser['agree'] + chooser['disagree']
+    return {'total_pairs': len(PAIRS), 'fully_judged': len(complete),
+            'overall': tally([w for v in by_pair.values() for w in v.values()]),
             'per_judge': per_judge, 'majority': dict(majority),
-            'kappa': fleiss_kappa(complete, (*ENGINES, 'tie', 'both-bad')),
+            'kappa': fleiss_kappa(complete, sorted({w for r in complete for w in r})),
             'by_size': {k: tally(v) for k, v in sorted(by_size.items())},
             'by_orientation': {k: tally(v) for k, v in sorted(by_orient.items())},
+            'hybrid_built_on': {e: kept[e] for e in ('pranay', 'gaurav')},
+            'chooser_agreement': round(chooser['agree'] / judged, 3) if judged else None,
             'engine_failures': failures, 'median_seconds': seconds, 'rows': rows}
 
 
@@ -241,11 +273,12 @@ def results():
 def export():
     buf = io.StringIO()
     w = csv.writer(buf)
-    w.writerow(['judge', 'pair', 'sample', 'target', 'left', 'right', 'choice', 'winner', 'note', 'seconds', 'at', 'blind'])
+    w.writerow(['judge', 'pair', 'sample', 'target', 'A', 'B', 'C', 'choice', 'winner', 'note', 'seconds', 'at', 'blind'])
     pairs()
     with db() as con:
         for judge, pair_id, choice, winner, note, secs, at, blind in con.execute('select * from votes order by at'):
             p = BY_ID[pair_id]
-            w.writerow([judge, pair_id, p['sample'], p['label'], p['A'], p['B'], choice, winner, note, secs, at, blind])
+            o = p['options']
+            w.writerow([judge, pair_id, p['sample'], p['label'], o['A'], o['B'], o['C'], choice, winner, note, secs, at, blind])
     return Response(buf.getvalue(), media_type='text/csv',
                     headers={'Content-Disposition': 'attachment; filename="blind-votes.csv"'})

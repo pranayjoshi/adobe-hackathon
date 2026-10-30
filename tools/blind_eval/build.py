@@ -1,9 +1,10 @@
-"""Build the blind A/B study: 200 Crello designs x 5 target sizes, both engines.
+"""Build the blind study: 200 Crello designs x 5 target sizes, our engine, Gaurav's and the hybrid.
 
 Run from the repo root (each stage is resumable and skips finished work):
     .venv/bin/python -m tools.blind_eval.build --gaurav ../chameleon-competitors/gaurav/chameleon
 
-Stages: select designs and sizes -> run both engines -> render -> write pairs.json.
+Stages: select designs and sizes -> run both engines -> hybrid (repair + choose, from the two
+cached runs) -> render -> write pairs.json with three blind options per task.
 Add --publish to render and publish only the finished pairs, so judging can start early.
 The design pool comes from `tools.build_crello_catalog --output work/blind-eval/crello`.
 """
@@ -11,6 +12,7 @@ from __future__ import annotations
 
 import argparse
 import hashlib
+import random
 import json
 import math
 import subprocess
@@ -24,7 +26,8 @@ sys.path.insert(0, str(ROOT))
 from lite.app import PRESETS, SAME_SHAPE  # noqa: E402  the 14 sizes the apps offer
 
 WORK = ROOT / 'work/blind-eval'
-ENGINES = ('pranay', 'gaurav')
+RUNNERS = ('pranay', 'gaurav')        # engines run by worker.py
+ENGINES = (*RUNNERS, 'hybrid')         # everything the judges compare
 SEED = 'chameleon-blind-v1'
 
 
@@ -85,7 +88,7 @@ def source_of(sample):
 
 def run(tasks, roots, shards):
     procs, renderer_root = [], roots['pranay']
-    for name in ENGINES:
+    for name in RUNNERS:
         out = WORK / 'runs' / name
         out.mkdir(parents=True, exist_ok=True)
         todo = [t for t in tasks if not (out / f"{t['id']}.json").exists()]
@@ -103,6 +106,30 @@ def run(tasks, roots, shards):
     print(f'{len(procs)} workers running; progress in {WORK / "shards"}/*.log', flush=True)
     for p in procs:
         p.wait()
+
+
+def hybridize(tasks):
+    """The hybrid's layout for each task, from the two engines' cached results.
+
+    Identical to hybrid.resize, which runs both engines live, without running them again.
+    """
+    from hybrid.combine import choose
+    out = WORK / 'runs' / 'hybrid'
+    out.mkdir(parents=True, exist_ok=True)
+    picks = Counter()
+    for t in tasks:
+        recs = {n: json.loads((WORK / 'runs' / n / f"{t['id']}.json").read_text()) for n in RUNNERS}
+        try:
+            res = choose(source_of(t['sample']), {n: r['design'] if r['ok'] else None for n, r in recs.items()},
+                         ROOT / 'brand_kit/assets')
+            rec = {'ok': True, 'design': res['design'], 'chosen': res['chosen'], 'report': res['report']}
+            picks[res['chosen']] += 1
+        except ValueError as exc:
+            rec = {'ok': False, 'error': str(exc)}
+        # Both engines run side by side, so the hybrid takes as long as the slower one.
+        rec['seconds'] = max(r['seconds'] for r in recs.values())
+        (out / f"{t['id']}.json").write_text(json.dumps(rec))
+    print(f'Hybrid built from: {dict(picks)}')
 
 
 def render_one(job):
@@ -131,16 +158,25 @@ def render(tasks):
 
 
 def pairs(tasks):
-    """Fix each task's left/right order by a seeded coin so names never leak through position."""
+    """Shuffle each task's options by a seeded draw so names never leak through position.
+
+    Each engine's render is fingerprinted: when two engines produce the same picture (the
+    hybrid often keeps one engine's layout unchanged), a vote for it counts for both.
+    """
     out = []
     for t in tasks:
-        left, right = ENGINES if int(digest(t['id'], 'side'), 16) % 2 == 0 else ENGINES[::-1]
+        order = list(ENGINES)
+        random.Random(digest(t['id'], 'order')).shuffle(order)
         meta = {}
         for name in ENGINES:
             rec = json.loads((WORK / 'runs' / name / f"{t['id']}.json").read_text())
             png = WORK / 'img' / f"{t['id']}__{name}.png"
-            meta[name] = {'ok': rec['ok'] and png.exists(), 'seconds': rec['seconds']}
-        out.append({**t, 'A': left, 'B': right, 'engines': meta})
+            ok = rec['ok'] and png.exists()
+            meta[name] = {'ok': ok, 'seconds': rec['seconds'],
+                          'render': hashlib.sha256(png.read_bytes()).hexdigest()[:16] if ok else None}
+            if name == 'hybrid' and ok:
+                meta[name]['chosen'] = rec['chosen']
+        out.append({**t, 'options': dict(zip('ABC', order)), 'engines': meta})
     tmp = WORK / 'pairs.tmp'  # the judge app may be reading the previous file
     tmp.write_text(json.dumps(out, indent=1))
     tmp.replace(WORK / 'pairs.json')
@@ -160,11 +196,13 @@ if __name__ == '__main__':
     a = ap.parse_args()
     tasks = select(a.count)
     if a.publish:
-        done = [t for t in tasks if all((WORK / 'runs' / n / f"{t['id']}.json").exists() for n in ENGINES)]
+        done = [t for t in tasks if all((WORK / 'runs' / n / f"{t['id']}.json").exists() for n in RUNNERS)]
+        hybridize(done)
         render(done)
         pairs(done)
         raise SystemExit
     run(tasks, {'pranay': a.pranay.resolve(), 'gaurav': a.gaurav.resolve()},
         {'pranay': a.shards_pranay, 'gaurav': a.shards_gaurav})
+    hybridize(tasks)
     render(tasks)
     pairs(tasks)
