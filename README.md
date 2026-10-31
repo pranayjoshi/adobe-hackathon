@@ -227,6 +227,27 @@ Every model is small, runs on CPU and ships with the repository, so nothing is d
 
 Python dependencies are in [`requirements.txt`](requirements.txt): Pillow, the official `cr-renderer`, OR-Tools, SciPy and jsonschema. The renderer's system libraries are installed by the [`Dockerfile`](Dockerfile).
 
+### Inside the layout transformer
+
+| | |
+|:---|:---|
+| **Task** | Takes a design and a target canvas, then places each element in turn |
+| **Network** | Encoder-decoder transformer: 3 encoder layers and 4 decoder layers with cross-attention |
+| **Size** | 192-dimensional tokens, 8 attention heads, 768-unit feed-forward layers |
+| **Parameters** | 4.71 million: decoder 2.37M, encoder 1.33M, output heads 0.43M, embeddings and projections 0.57M |
+| **Weights** | 8.7 MB in 16-bit floats; inference runs in NumPy on CPU, with no PyTorch needed |
+| **Encoder input** | One token per element (up to 48), from 5 element types and 32 features, plus a 6-value global token with the source and target shapes |
+| **Decoder output** | Five values per element (width, height, x, y, font size), each one of 256 bins relative to a plain stretch and conditioned on the values before it |
+| **Sampling** | A greedy layout plus further samples, refined by a CP-SAT solver, then held to the same gate as every other source |
+| **Training data** | 56,610 designer resize pairs from 1,401 Crello design families, split by family: 1,146 train, 94 validation, 161 test |
+| **Training** | AdamW at a 3e-4 learning rate and batch size 64; the shipped weights are the best validation checkpoint, at step 11,500 |
+
+On 500 held-out pairs, its greedy layout matches the designer's about as well as a plain stretch (IoU 0.411 versus 0.413), and the best of 8 samples reaches 0.453. Geometry alone doesn't capture design quality, so the model's job here is to add options, and the gate and judge decide what ships.
+
+On 292 unseen tasks, the shipped layout started from the transformer 49% of the time. Floor plans supplied 15%, the strategy-based algorithm 13% and layout templates 23%.
+
+The judge uses 21 features fitted on 854 human preferences, and predicts held-out preferences 68.7% of the time. The role classifier is a 48-tree ensemble over 16 features and 11 roles, with 62.7% accuracy per element on held-out data.
+
 ## Operating limits
 
 - **Platform:** Docker on `linux/amd64`, with no network needed at run time. We tested on an Apple Silicon Mac under emulation, not on the exact scoring machine, whose limits are still to be published.
