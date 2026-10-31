@@ -101,9 +101,38 @@ The engine never refuses a task. If everything fails, the least bad layout comes
 
 The two pass rates match, which is the check we care about most: there is no sign of overfitting. These checks are our own copy of the published rules, not the official scorer.
 
-### What people picked
+### Our best results
 
-On 152 held-out tasks, comparing three engines:
+Twelve favourites, hand-picked by us from the layouts people voted best on designs held out from fitting. Each one also passed every structural check with no text lost. They show the engine at its best, so the numbers above are the fairer measure of a typical result.
+
+<img src="docs/readme/gallery.png" alt="Best resized designs from the Crello dataset, each shown beside its original">
+
+<sub>Designs from the [Crello dataset](https://huggingface.co/datasets/cyberagent/crello) (CDLA-Permissive-2.0).</sub>
+
+## How people shaped the engine
+
+We didn't want a score we had written ourselves to decide what looks good, so the team built a voting tool and judged the engines by eye, round after round. Each round was a small effort, and together they set the direction of the final engine.
+
+| Round | What we judged | Votes | What changed |
+|:---|:---|---:|:---|
+| **Pilot** | Our engine, Gaurav's and a hybrid of the two, names hidden | 53 | We replaced the hybrid with a merged engine |
+| **Round 1** | Ours, Gaurav's and merged on 200 tasks, by a three-person panel voting blind (agreement κ = 0.73) | 600 | People preferred bold layouts that often broke the rules, and these votes trained the judge model |
+| **Final round** | Final, merged and Gaurav's on 152 tasks held out from fitting | 456 | Confirmed the final engine, and we kept its judge as it was |
+
+### What the votes taught us
+
+- **Bold beats tidy.** In round 1, Gaurav's engine won 46% of picks, merged 38% and ours 25%. Larger type, content that uses the canvas and a strong headline decided the votes, while our own defect counts barely mattered.
+- **Legal matters too.** Votes can't see the JSON rules, and many layouts people liked broke them. That led to the final design: generate broadly, repair everything, then choose the way people chose.
+- **A model, not a pile of rules.** The judge is a small linear model fitted on 854 preferences from those votes. On designs held out from fitting, it predicts which of two layouts people picked about 69% of the time.
+
+### The small things that kept the votes honest
+
+- Engine names stayed hidden in the blind rounds, and options were shuffled by a seeded draw.
+- Picture URLs carry a fingerprint, so a cached image can't appear under the wrong option.
+- Every build checks each option against its engine's run before anyone votes.
+- A core set covers every canvas shape evenly, from extreme wide to extreme tall.
+
+### What people picked in the final round
 
 | Engine | Picked as best | Passes every structural check |
 |:---|---:|---:|
@@ -113,15 +142,7 @@ On 152 held-out tasks, comparing three engines:
 
 Ties count for both engines. In 12.5% of tasks every option was marked bad.
 
-> **How far to trust this vote.** It reflects effectively one judge, because all three name rows received identical picks, and engine names were visible. An earlier round on different designs, with three independent judges voting blind, is what the judge model was trained on.
-
-### Sample results on unseen designs
-
-Original on the left of each group, then two new sizes. These are tasks the panel picked as best, so they show the engine at its better end.
-
-<img src="docs/readme/gallery.png" alt="Gallery of resized designs">
-
-<sub>Designs from the [Crello dataset](https://huggingface.co/datasets/cyberagent/crello) (CDLA-Permissive-2.0).</sub>
+> **How far to trust this vote.** It reflects effectively one judge, because all three name rows received identical picks, and engine names were visible. Round 1, with three independent judges voting blind, is what the judge model was trained on.
 
 ## Keeping it general
 
@@ -176,13 +197,6 @@ Then open http://127.0.0.1:5241, or sideload `express_addon/dist` using Adobe's 
 Pick a sample or upload a design, choose sizes and generate. Each result can be compared with the original and a plain stretch, and downloaded as PNG or JSON. After `npm --prefix viewer install` and `npm --prefix viewer run build`, the service above serves it at http://127.0.0.1:8765.
 
 <img src="docs/readme/viewer.jpg" width="760" alt="Web viewer">
-
-## Known limits
-
-- **Widely spaced type on thin strips.** Letter spacing is fixed in pixels and can't be changed, so 30 px spacing across 18 letters needs 510 px whatever the font size. On a 90 px canvas that text gets very small.
-- **Hairlines on extreme canvases.** Thin rules that keep their proportions can fall under 1 px. This accounts for 9 of the 10 structural misses above.
-- **Some layouts are still poor.** Most often pieces scatter on wide formats such as billboards, or text lands on busy shapes.
-- **Results can vary slightly between runs,** because refinement works within a time budget.
 
 ## Repository map
 
