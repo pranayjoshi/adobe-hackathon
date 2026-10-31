@@ -1,6 +1,8 @@
 <div align="center">
 
-<img src="docs/readme/hero.png" alt="Two official samples re-composed by the final engine for a story, a square, a thumbnail, a wide banner, a skyscraper and a leaderboard" width="100%">
+<a href="https://youtu.be/oYZc-eKeEWE"><img src="docs/readme/video-thumbnail.jpg" alt="Play the 2-minute Chameleon demo video on YouTube" width="100%"></a>
+
+### [▶ Watch the 2-minute demo](https://youtu.be/oYZc-eKeEWE)
 
 # 🦎 Chameleon
 
@@ -13,6 +15,8 @@ Adobe University Hackathon: North America 2026 · Project Chameleon
 
 **Team Roll Tide:** Gaurav Shrivastava · Pranay Joshi · Kavya Gupta
 
+[![Watch the demo on YouTube](https://img.shields.io/badge/%E2%96%B6%20Watch%20the%20demo-2%20min-E82832?style=for-the-badge&logo=youtube&logoColor=white)](https://youtu.be/oYZc-eKeEWE)
+
 ![Offline](https://img.shields.io/badge/Offline-no%20network%20at%20run%20time-2496ED?logo=docker&logoColor=white)
 ![Docker](https://img.shields.io/badge/Docker-linux%2Famd64-2496ED?logo=docker&logoColor=white)
 ![Python](https://img.shields.io/badge/Python-3.10%2B-3776AB?logo=python&logoColor=white)
@@ -20,7 +24,9 @@ Adobe University Hackathon: North America 2026 · Project Chameleon
 ![Clean](https://img.shields.io/badge/96.6%25-structurally%20clean%20on%20unseen%20designs-3FE08A)
 ![Votes](https://img.shields.io/badge/judge-fitted%20on%20human%20votes-FF8A1F)
 
-[Quick start](#quick-start) · [Results](#results) · [How it works](#how-it-works) · [How people shaped the engine](#how-people-shaped-the-engine) · [Rules checklist](#rules-checklist) · [Viewer](#viewer) · [Models and dependencies](#models-and-dependencies) · [Operating limits](#operating-limits)
+[**▶ Demo video**](https://youtu.be/oYZc-eKeEWE) · [Quick start](#quick-start) · [Results](#results) · [How it works](#how-it-works) · [How people shaped the engine](#how-people-shaped-the-engine) · [Rules checklist](#rules-checklist) · [Viewer](#viewer) · [Models and dependencies](#models-and-dependencies) · [Operating limits](#operating-limits)
+
+<img src="docs/readme/hero.png" alt="Two official samples re-composed by the final engine for a story, a square, a thumbnail, a wide banner, a skyscraper and a leaderboard" width="100%">
 
 </div>
 
