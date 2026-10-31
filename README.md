@@ -9,6 +9,8 @@ Give it a finished design and a new canvas size. It rearranges the same elements
 
 Adobe University Hackathon: North America 2026 · Project Chameleon
 
+**Team:** Gaurav Shrivastava · Pranay Joshi · Kavya Gupta
+
 `Offline` · `Docker linux/amd64` · `No image generation` · `96.6% structurally clean on unseen designs`
 
 </div>
