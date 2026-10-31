@@ -164,7 +164,7 @@ The brief rules out anything hand-tailored to a design or a size. We held oursel
 | No regenerated or invented image content | ✅ No image generation anywhere |
 | Runs offline in a standard container | ✅ Built from a fresh clone, run with `--network none` |
 | Output matches `chameleon_design_schema_v0.9.json` | ✅ Validated |
-| Fine-tuned weights publicly accessible | Our own weights ship in this repository |
+| Model weights and dependencies accessible to evaluators | ✅ All weights ship in this repository and the Docker image |
 | Read-me with approach and how to run | ✅ This file |
 | Viewer add-on (required, not scored) | ✅ See below, with its limits |
 
@@ -197,6 +197,27 @@ Then open http://127.0.0.1:5241, or sideload `express_addon/dist` using Adobe's 
 Pick a sample or upload a design, choose sizes and generate. Each result can be compared with the original and a plain stretch, and downloaded as PNG or JSON. After `npm --prefix viewer install` and `npm --prefix viewer run build`, the service above serves it at http://127.0.0.1:8765.
 
 <img src="docs/readme/viewer.jpg" width="760" alt="Web viewer">
+
+## Models and dependencies
+
+Every model is small, runs on CPU and ships with the repository, so nothing is downloaded at run time.
+
+| Model | File | Role |
+|:---|:---|:---|
+| Layout transformer | `engine/models/retarget.npz` (8.7 MB) | Proposes layouts; we trained it on Crello designs |
+| Judge | `final/weights.json` | Linear model fitted on human votes; picks the final layout |
+| Role classifier and layout library | `engine/models/roles*.json`, `engine/models/layouts*.json` | Identify what each element is and suggest arrangements |
+| Second engine's role model | `vendor/gaurav/engine/models/roles.npz` | Used by Gaurav's strategies; `FINAL_GAURAV=0` turns them off |
+
+Python dependencies are in [`requirements.txt`](requirements.txt): Pillow, the official `cr-renderer`, OR-Tools, SciPy and jsonschema. The renderer's system libraries are installed by the [`Dockerfile`](Dockerfile).
+
+## Operating limits
+
+- **Platform:** Docker on `linux/amd64`, with no network needed at run time. We tested on an Apple Silicon Mac under emulation, not on the exact scoring machine, whose limits are still to be published.
+- **Speed:** about 12 s per task (median), and up to 49 s on our final test, running four tasks at a time.
+- **Spaced type on thin canvases:** letter spacing can't be changed, so widely spaced text can get very small on strips such as 728×90.
+- **Hairlines on extreme canvases:** thin rules that keep their proportions can fall under 1 px, which accounts for 9 of the 10 structural misses on unseen designs.
+- **Run-to-run variation:** refinement works within a time budget, so results can differ slightly between runs.
 
 ## Repository map
 
