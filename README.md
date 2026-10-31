@@ -1,5 +1,7 @@
 <div align="center">
 
+<img src="docs/readme/hero.png" alt="Two official samples re-composed by the final engine for a story, a square, a thumbnail, a wide banner, a skyscraper and a leaderboard" width="100%">
+
 # 🦎 Chameleon
 
 ### Any design. Every canvas.
@@ -11,11 +13,18 @@ Adobe University Hackathon: North America 2026 · Project Chameleon
 
 **Team Roll Tide:** Gaurav Shrivastava · Pranay Joshi · Kavya Gupta
 
-`Offline` · `Docker linux/amd64` · `No image generation` · `96.6% structurally clean on unseen designs`
+![Offline](https://img.shields.io/badge/Offline-no%20network%20at%20run%20time-2496ED?logo=docker&logoColor=white)
+![Docker](https://img.shields.io/badge/Docker-linux%2Famd64-2496ED?logo=docker&logoColor=white)
+![Python](https://img.shields.io/badge/Python-3.10%2B-3776AB?logo=python&logoColor=white)
+![No image generation](https://img.shields.io/badge/No%20image%20generation-pixels%20untouched-E03A4E)
+![Clean](https://img.shields.io/badge/96.6%25-structurally%20clean%20on%20unseen%20designs-3FE08A)
+![Votes](https://img.shields.io/badge/judge-fitted%20on%20human%20votes-FF8A1F)
+
+[Quick start](#quick-start) · [Results](#results) · [How it works](#how-it-works) · [How people shaped the engine](#how-people-shaped-the-engine) · [Rules checklist](#rules-checklist) · [Viewer](#viewer) · [Models and dependencies](#models-and-dependencies) · [Operating limits](#operating-limits)
 
 </div>
 
-<br>
+---
 
 | Level 1: 1080×1080 → 1080×1350 | Level 2: 1080×1080 → 1600×400 |
 |:---:|:---:|
@@ -29,7 +38,11 @@ Adobe University Hackathon: North America 2026 · Project Chameleon
 
 </div>
 
+---
+
 ## Quick start
+
+**You need:** [Docker](https://www.docker.com/products/docker-desktop/). Nothing else: the image brings Python, the renderer, the fonts and every model.
 
 The submission runs exactly the way scoring does:
 
@@ -42,6 +55,23 @@ docker run --rm --network none -v $(pwd)/input:/app/input -v $(pwd)/output:/app/
 ```
 
 Each task in `input/` produces `output/<task>_output.json` and `output/<task>_output.png`. The image is about 1.2 GB and needs nothing from the network at run time.
+
+The three official samples are already in `input/`, so these commands work straight after cloning. To try your own design, add a task JSON to `input/`.
+
+> [!IMPORTANT]
+> **On an Apple Silicon Mac,** turn on *Use Rosetta for x86/amd64 emulation* in Docker Desktop first. Under Docker's default QEMU emulation the renderer's native library crashes, and the container hangs without writing anything. If you can't use Rosetta, build the same Dockerfile natively. It builds in about a minute and ran all three samples offline in 31 s:
+>
+> ```bash
+> sed 's#^FROM --platform=linux/amd64 #FROM #' Dockerfile > /tmp/Dockerfile.arm64
+> ```
+>
+> ```bash
+> docker build -f /tmp/Dockerfile.arm64 -t my-chameleon-engine .
+> ```
+>
+> Then use the same `docker run` command as above.
+
+### Without Docker
 
 Without Docker (Python 3.10+, with `git` installed):
 
@@ -57,9 +87,30 @@ python3 -m venv .venv
 .venv/bin/python -m engine.main
 ```
 
-The three official samples are already in `input/`, so these commands work straight after cloning. To try your own design, add a task JSON to `input/`.
+> [!TIP]
+> - **Check your Python first.** `python3 --version` must say 3.10 or newer. Some Macs still ship 3.9 as `python3`; if yours does, use `python3.11 -m venv .venv` for the first command.
+> - **The first task is the slowest.** It loads the models: 53 s from a fresh clone on our test Mac, then 7 to 8 s for each task after it.
+> - **`engine.main` runs the final engine,** the same one as the Docker entry point (`python -m final.main`).
+> - **Two optional settings:** `FINAL_GAURAV=0` turns off the strategy-based layout algorithm, and `FINAL_REFINE_SECONDS` changes the refinement budget (default 12).
 
-## Stretching versus moving the furniture
+---
+
+## Results
+
+### On designs nothing was tuned on
+
+146 fresh designs, 292 tasks, run once after every decision was frozen.
+
+| Measure | Result |
+|:---|---:|
+| Pass every structural check | **282 of 292 (96.6%)** |
+| Same measure on the voted designs | 145 of 152 (95.4%) |
+| Tasks where some text draws under 3 px | 9 of 292 |
+| Seconds per task, median / mean / slowest | 11.9 / 13.4 / 48.9 |
+
+The two pass rates match, which is the check we care about most: there is no sign of overfitting. These checks are our own copy of the published rules, not the official scorer.
+
+### Stretching versus moving the furniture
 
 The same official sample and target, drawn by the official renderer:
 
@@ -67,9 +118,52 @@ The same official sample and target, drawn by the official renderer:
 |:---:|:---:|:---:|
 | <img src="docs/readme/level2-source.png" width="220" alt="Original design"> | <img src="docs/readme/level2-stretch.png" width="300" alt="Stretched design"> | <img src="docs/readme/level2-result.png" width="300" alt="Chameleon result"> |
 
+### Sample results
+
+Twelve favourites, hand-picked by us from the layouts people voted best on designs held out from fitting. Each one also passed every structural check with no text lost. They show the engine at its best, so the numbers above are the fairer measure of a typical result.
+
+<img src="docs/readme/gallery.png" alt="Best resized designs from the Crello dataset, each shown beside its original">
+
+<sub>Designs from the [Crello dataset](https://huggingface.co/datasets/cyberagent/crello) (CDLA-Permissive-2.0).</sub>
+
+---
+
 ## How it works
 
 No single approach won. People preferred bold layouts that often broke the rules, and strictly legal layouts often looked timid. So the engine generates broadly, makes everything legal, then chooses the way people did.
+
+<table>
+<tr>
+<td width="50%" valign="top">
+
+### 1. Generate 🧩
+Templates, constraint solving with OR-Tools, a transformer trained on real designs and a strategy-based layout algorithm produce a wide pool of layouts.
+
+</td>
+<td width="50%"><img src="docs/readme/pool.png" alt="Six different layouts of the Level 2 sample for a 1600×400 banner, from the final engine's pool"></td>
+</tr>
+<tr>
+<td width="50%"><img src="docs/readme/level3-result.png" alt="Level 3 sample, 17 elements, laid out legally on a 728×90 leaderboard"></td>
+<td width="50%" valign="top">
+
+### 2. Repair 🔧
+Layouts that break a rule are rebuilt on untouched copies of the source elements. Only position, size and font size can change.
+
+### 3. Gate 🚧
+Layouts failing the fewest structural checks stay, then those losing the fewest texts to tiny type. New overflow, text printed over text, newly hidden elements and lost contrast are ruled out whenever something else survives.
+
+</td>
+</tr>
+<tr>
+<td width="50%" valign="top">
+
+### 4. Judge 🗳️
+The survivors are drawn by the official renderer, and a small linear model picks one. It learned from human votes which qualities matter: larger type, content that uses the canvas, and a headline that keeps its presence.
+
+</td>
+<td width="50%"><img src="docs/readme/level2-result.png" alt="The layout the judge picked for the Level 2 sample at 1600×400"></td>
+</tr>
+</table>
 
 ```mermaid
 flowchart LR
@@ -87,39 +181,17 @@ flowchart LR
     I --> J[Output JSON and PNG]
 ```
 
-1. **Generate.** Templates, constraint solving with OR-Tools, a transformer trained on real designs and a strategy-based layout algorithm produce a wide pool of layouts.
-2. **Repair.** Layouts that break a rule are rebuilt on untouched copies of the source elements. Only position, size and font size can change.
-3. **Gate.** Layouts failing the fewest structural checks stay, then those losing the fewest texts to tiny type. New overflow, text printed over text, newly hidden elements and lost contrast are ruled out whenever something else survives.
-4. **Judge.** The survivors are drawn by the official renderer, and a small linear model picks one. It learned from human votes which qualities matter: larger type, content that uses the canvas, and a headline that keeps its presence.
-
 The engine never refuses a task. If everything fails, the least bad layout comes back, and missing assets or unknown fonts don't crash it.
 
-## Results
+More on the stages and the decisions behind them: [`final/README.md`](final/README.md).
 
-### On designs nothing was tuned on
-
-146 fresh designs, 292 tasks, run once after every decision was frozen.
-
-| Measure | Result |
-|:---|---:|
-| Pass every structural check | **282 of 292 (96.6%)** |
-| Same measure on the voted designs | 145 of 152 (95.4%) |
-| Tasks where some text draws under 3 px | 9 of 292 |
-| Seconds per task, median / mean / slowest | 11.9 / 13.4 / 48.9 |
-
-The two pass rates match, which is the check we care about most: there is no sign of overfitting. These checks are our own copy of the published rules, not the official scorer.
-
-### Sample results
-
-Twelve favourites, hand-picked by us from the layouts people voted best on designs held out from fitting. Each one also passed every structural check with no text lost. They show the engine at its best, so the numbers above are the fairer measure of a typical result.
-
-<img src="docs/readme/gallery.png" alt="Best resized designs from the Crello dataset, each shown beside its original">
-
-<sub>Designs from the [Crello dataset](https://huggingface.co/datasets/cyberagent/crello) (CDLA-Permissive-2.0).</sub>
+---
 
 ## How people shaped the engine
 
 We didn't want a score we had written ourselves to decide what looks good, so the team built a voting tool and judged the engines by eye, round after round. Each round was a small effort, and together they set the direction of the final engine.
+
+In the tables below, "ours" is the layout pipeline in `engine/`, "Gaurav's" is the strategy-based engine now in `vendor/gaurav/`, and "merged" adds the floor plans and growth rules in `merged/`.
 
 | Round | What we judged | Votes | What changed |
 |:---|:---|---:|:---|
@@ -152,6 +224,8 @@ Ties count for both engines. In 12.5% of tasks every option was marked bad.
 
 > **How far to trust this vote.** It reflects effectively one judge, because all three name rows received identical picks, and engine names were visible. Round 1, with three independent judges voting blind, is what the judge model was trained on.
 
+---
+
 ## Keeping it general
 
 The brief rules out anything hand-tailored to a design or a size. We held ourselves to that:
@@ -161,20 +235,32 @@ The brief rules out anything hand-tailored to a design or a size. We held oursel
 - 146 designs were set aside and used only once, at the very end.
 - Speedups had to reproduce the old layouts exactly. With time limits removed, 15 of 15 test tasks came out identical.
 
+---
+
 ## Rules checklist
+
+Everything the brief, `RULES.md` and `FAQ.md` ask of a stage-one submission.
 
 | Requirement | Status |
 |:---|:---|
 | Same element ids and count, nothing added or removed | ✅ Checked on every output |
+| Required fields present on every element | ✅ Checked on every output, and by the starter's self-check |
 | Text, fonts, colours and assets unchanged | ✅ Only position, size and font size are changed, plus crop fit on backgrounds |
 | Nothing off-canvas | ✅ Checked on every output |
 | Images kept in proportion | ✅ 1 miss in 292 unseen tasks |
 | No regenerated or invented image content | ✅ No image generation anywhere |
+| Both artifacts produced: output JSON and a PNG drawn by the official renderer | ✅ One of each per task in `output/` |
+| No hand-tailoring to specific designs or sizes | ✅ See [Keeping it general](#keeping-it-general) |
+| Works when element ids are opaque, as in the hidden tasks | ✅ Level 3 with every id replaced by a meaningless one gives a complete layout |
+| Missing assets don't break a run (Level 3 references one on purpose) | ✅ Handled, and the asset isn't added |
 | Runs offline in a standard container | ✅ Built from a fresh clone, run with `--network none` |
 | Output matches `chameleon_design_schema_v0.9.json` | ✅ Validated |
 | Model weights and dependencies accessible to evaluators | ✅ All weights ship in this repository and the Docker image |
+| No hard time limit, but speed and reliability are a rubric row | ✅ See [Operating limits](#operating-limits) |
 | Read-me with approach and how to run | ✅ This file |
-| Viewer add-on (required, not scored) | ✅ See below, with its limits |
+| Viewer add-on (required, not scored) | ✅ See below, with its limits. `FAQ.md` asks for it at stage one; the final brief places the full add-on in the finale, so it's included either way |
+
+---
 
 ## Viewer
 
@@ -183,6 +269,8 @@ The brief rules out anything hand-tailored to a design or a size. We held oursel
 The add-on in [`express_addon/`](express_addon/) uploads a design, generates options from the final engine and previews them.
 
 <img src="docs/readme/addon.jpg" width="420" alt="Express add-on panel">
+
+**You need:** the Python setup from [Without Docker](#without-docker) and [Node.js](https://nodejs.org) (tested with Node 24).
 
 The viewer and add-on need the service's extra packages and Node.js. From the repository root, install them and start the service:
 
@@ -206,6 +294,8 @@ npm --prefix express_addon run dev
 
 Then open http://127.0.0.1:5241, or sideload `express_addon/dist` using Adobe's add-on development tools.
 
+`express_addon/dist` exists only after a build, so run `npm --prefix express_addon run build` before sideloading. Sideloading needs a trusted HTTPS server, and the panel's engine URL can be changed in the panel. Details are in [`express_addon/README.md`](express_addon/README.md).
+
 **Current limits:** it has not been tested inside a live Adobe Express session. Writing a result into an Express document works only for simple designs, so groups, rich text and rounded corners show a clear explanation instead of being applied.
 
 ### Web viewer
@@ -213,6 +303,8 @@ Then open http://127.0.0.1:5241, or sideload `express_addon/dist` using Adobe's 
 Pick a sample or upload a design, choose sizes and generate. Each result can be compared with the original and a plain stretch, and downloaded as PNG or JSON. After `npm --prefix viewer install` and `npm --prefix viewer run build`, the service above serves it at http://127.0.0.1:8765. Restart the service if it was already running.
 
 <img src="docs/readme/viewer.jpg" width="760" alt="Web viewer">
+
+---
 
 ## Models and dependencies
 
@@ -248,6 +340,8 @@ On 292 unseen tasks, the shipped layout started from the transformer 49% of the 
 
 The judge uses 21 features fitted on 854 human preferences, and predicts held-out preferences 68.7% of the time. The role classifier is a 48-tree ensemble over 16 features and 11 roles, with 62.7% accuracy per element on held-out data.
 
+---
+
 ## Operating limits
 
 - **Platform:** Docker on `linux/amd64`, with no network needed at run time. We tested on an Apple Silicon Mac under emulation, not on the exact scoring machine, whose limits are still to be published.
@@ -256,13 +350,11 @@ The judge uses 21 features fitted on 854 human preferences, and predicts held-ou
 - **Hairlines on extreme canvases:** thin rules that keep their proportions can fall under 1 px, which accounts for 9 of the 10 structural misses on unseen designs.
 - **Run-to-run variation:** refinement works within a time budget, so results can differ slightly between runs.
 
-## Team and credits
+---
 
-Team Roll Tide: Gaurav Shrivastava, Pranay Joshi and Kavya Gupta.
+## What's inside
 
-The strategy-based layout algorithm in [`vendor/gaurav/`](vendor/gaurav/) is Gaurav's work, copied from his [AdobeHackathon repository](https://github.com/GauravS11112003/AdobeHackathon) (private) at commit `4d76410`, so its development history is there rather than here.
-
-## Repository map
+Repository map:
 
 | Path | What it holds |
 |:---|:---|
@@ -270,14 +362,24 @@ The strategy-based layout algorithm in [`vendor/gaurav/`](vendor/gaurav/) is Gau
 | `engine/` | Our layout pipeline, checks and the starter's runner |
 | `merged/` | Floor plans and growth rules |
 | `vendor/gaurav/` | Gaurav Shrivastava's strategy-based layout algorithm, a source of layouts (`FINAL_GAURAV=0` turns it off) |
-| `renderer/` | The official renderer |
+| `renderer/` | The official renderer, with small additions: dataset fonts, capitalization and an optional strict font check |
 | `service/`, `viewer/`, `express_addon/` | API, web viewer and add-on |
 | `tools/`, `evaluation/`, `training/`, `tests/` | Judging tools, benchmarks, model training and tests |
 
 More detail is in the [developer guide](docs/developer-guide.md).
+
+## Tests
 
 To run the tests, install `requirements-dev.txt` as above, then:
 
 ```bash
 .venv/bin/python -m unittest discover -s tests
 ```
+
+On a fresh clone with only `requirements-dev.txt` installed: 174 tests, 163 pass and 8 skip. Two more need things outside the runtime: `test_grpo_training` needs `requirements-train.txt` (torch), and `test_providers_retrieval` needs the locally imported Crello catalogue. One currently fails: `test_semantic_structure.test_photo_is_never_a_flexible_support_and_no_leaf_twice`.
+
+## Team and credits
+
+Team Roll Tide: Gaurav Shrivastava, Pranay Joshi and Kavya Gupta.
+
+The strategy-based layout algorithm in [`vendor/gaurav/`](vendor/gaurav/) is Gaurav's work, copied from his [AdobeHackathon repository](https://github.com/GauravS11112003/AdobeHackathon) (private) at commit `4d76410`, so its development history is there rather than here.
