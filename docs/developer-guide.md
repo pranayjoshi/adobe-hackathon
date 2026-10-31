@@ -16,13 +16,12 @@ npm --prefix viewer run build
 
 Open **http://127.0.0.1:8765**. For frontend development, `npm --prefix viewer run dev` starts port 5180 with the API proxy. The competition interface remains `python -m engine.main` and runs without network access.
 
-The viewer also offers an experimental **Workflow** selector for one-design refinement, composition recovery, or a small shortlist. These modes keep a verified checkpoint, save edit history, and support canonical geometry corrections with undo/redo and revision-specific feedback. The optional joint solver chooses measured text configurations as well as positions. Legacy generation and placement remain defaults until independent visual evidence supports promotion. Local jobs, partial results and feedback persist in SQLite; generation runs in supervised worker processes.
+The viewer runs the final engine: pick a sample or upload JSON, choose sizes, compare results and download PNG or JSON. The service API keeps the older options (`options`, `locks`, saved history) for scripts and evaluation.
+
 
 Implementation scope, visual experiments and limitations are recorded in [the Codex execution report](individual-update-plans/22-codex-execution-report.md). Human feedback can be exported with `python -m tools.export_preferences --out output/human-preferences/labels.jsonl`; saving feedback does not automatically train or deploy a model.
 
-The viewer includes a [Crello browser](crello-browser.md) with 60 locally imported validation designs, original layer images and fonts, preview comparison, search and filters. Rebuild it with `.venv/bin/python -m tools.build_crello_catalog --download --limit 60` and restart the service.
 
-The viewer supports sample/custom JSON designs, custom sizes, headline/product emphasis, placement locks, all-candidate inspection, diagnostics, repair traces, job progress/cancellation, saved history, blind preference labels, and evaluation reports. Review workspace is available from the header.
 
 ## Engine and model status
 
@@ -31,7 +30,7 @@ The viewer supports sample/custom JSON designs, custom sizes, headline/product e
 | Arrangements, typography, preservation checks | Active |
 | Group repair, CP-SAT placement, visual diagnostics | Active |
 | Retrieval | Active; 638 geometry-only training-family layouts |
-| Learned role suggestions | Trained 48-tree pilot, opt-in through viewer or `CHAMELEON_ROLE_MODEL=1` |
+| Learned role suggestions | Trained 48-tree pilot, opt-in through `CHAMELEON_ROLE_MODEL=1` |
 | Preference learning | Human-label collection and held-out fitting available; no human-trained ranker deployed |
 | Local visual model | Optional isolated proposal adapter; requires compatible native library, permitted weights and projector |
 | Express panel | Separate prototype in `express_addon/`; builds, live Adobe application unverified |
@@ -54,7 +53,7 @@ The role pilot was trained on 1,256 public designs joined to machine-distilled d
 
 ### Guardrails, judging, and model training
 
-The design rules in [docs/chameleon-design-guardrails-and-eval-rubric.md](chameleon-design-guardrails-and-eval-rubric.md) are implemented in `engine/rubric.py`. After the first pass, `engine/refine.py` takes the three best distinct candidates and hill-climbs each against its rubric issues (margins, alignment, small text, collisions, gaps, groups, type order). It keeps a change only if the candidate ranks strictly higher, and it never trades in a release-blocking defect. Disable it with the viewer's *Refine best 3* toggle or `options={'refine': False}`; `refine_seconds` sets the time budget (default 12 s). Every candidate carries a tiered `rubric` report. Candidates failing Tier 0 (disqualifiers) or Tier 1 (structure) rank last, and Tier 2 design defects count against ranking.
+The design rules in [docs/chameleon-design-guardrails-and-eval-rubric.md](chameleon-design-guardrails-and-eval-rubric.md) are implemented in `engine/rubric.py`. After the first pass, `engine/refine.py` takes the three best distinct candidates and hill-climbs each against its rubric issues (margins, alignment, small text, collisions, gaps, groups, type order). It keeps a change only if the candidate ranks strictly higher, and it never trades in a release-blocking defect. Disable it with `options={'refine': False}`; `refine_seconds` sets the time budget (default 12 s). Every candidate carries a tiered `rubric` report. Candidates failing Tier 0 (disqualifiers) or Tier 1 (structure) rank last, and Tier 2 design defects count against ranking.
 
 ```sh
 .venv/bin/python -m evaluation.benchmark --name release --render --offline   # catalogue sizes, tiers, aspect buckets

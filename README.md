@@ -171,11 +171,11 @@ Then open http://127.0.0.1:5241, or sideload `express_addon/dist` using Adobe's 
 
 **Current limits:** it has not been tested inside a live Adobe Express session. Writing a result into an Express document works only for simple designs, so groups, rich text and rounded corners show a clear explanation instead of being applied.
 
-### Developer viewer
+### Web viewer
 
-A fuller local interface with diagnostics and side-by-side options. After `npm --prefix viewer install` and `npm --prefix viewer run build`, the service above serves it at http://127.0.0.1:8765.
+Pick a sample or upload a design, choose sizes and generate. Each result can be compared with the original and a plain stretch, and downloaded as PNG or JSON. After `npm --prefix viewer install` and `npm --prefix viewer run build`, the service above serves it at http://127.0.0.1:8765.
 
-<img src="docs/readme/viewer.jpg" width="760" alt="Developer viewer">
+<img src="docs/readme/viewer.jpg" width="760" alt="Web viewer">
 
 ## Known limits
 
@@ -193,7 +193,7 @@ A fuller local interface with diagnostics and side-by-side options. After `npm -
 | `merged/` | Floor plans and growth rules |
 | `vendor/gaurav/` | A second engine, used as a source of layouts (`FINAL_GAURAV=0` turns it off) |
 | `renderer/` | The official renderer |
-| `service/`, `viewer/`, `express_addon/` | API, developer viewer and add-on |
+| `service/`, `viewer/`, `express_addon/` | API, web viewer and add-on |
 | `tools/`, `evaluation/`, `training/`, `tests/` | Judging tools, benchmarks, model training and tests |
 
 More detail is in the [developer guide](docs/developer-guide.md).
