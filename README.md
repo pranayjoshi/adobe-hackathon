@@ -43,15 +43,21 @@ docker run --rm --network none -v $(pwd)/input:/app/input -v $(pwd)/output:/app/
 
 Each task in `input/` produces `output/<task>_output.json` and `output/<task>_output.png`. The image is about 1.2 GB and needs nothing from the network at run time.
 
-Without Docker (Python 3.10+):
+Without Docker (Python 3.10+, with `git` installed):
 
 ```bash
-pip install -r requirements.txt
+python3 -m venv .venv
 ```
 
 ```bash
-python -m engine.main
+.venv/bin/pip install -r requirements.txt
 ```
+
+```bash
+.venv/bin/python -m engine.main
+```
+
+The three official samples are already in `input/`, so these commands work straight after cloning. To try your own design, add a task JSON to `input/`.
 
 ## Stretching versus moving the furniture
 
@@ -70,7 +76,7 @@ flowchart LR
     A[Source design<br>and target size] --> B[Layout templates]
     A --> C[Floor plans]
     A --> D[Learned layout model]
-    A --> E[Gaurav's strategies]
+    A --> E[Strategy-based<br>layout algorithm]
     E --> F[Repair: position, size<br>and font size only]
     B --> G{Strict gate}
     C --> G
@@ -81,7 +87,7 @@ flowchart LR
     I --> J[Output JSON and PNG]
 ```
 
-1. **Generate.** Templates, constraint solving with OR-Tools, a transformer trained on real designs and a second engine's strategies produce a wide pool of layouts.
+1. **Generate.** Templates, constraint solving with OR-Tools, a transformer trained on real designs and a strategy-based layout algorithm produce a wide pool of layouts.
 2. **Repair.** Layouts that break a rule are rebuilt on untouched copies of the source elements. Only position, size and font size can change.
 3. **Gate.** Layouts failing the fewest structural checks stay, then those losing the fewest texts to tiny type. New overflow, text printed over text, newly hidden elements and lost contrast are ruled out whenever something else survives.
 4. **Judge.** The survivors are drawn by the official renderer, and a small linear model picks one. It learned from human votes which qualities matter: larger type, content that uses the canvas, and a headline that keeps its presence.
@@ -178,9 +184,17 @@ The add-on in [`express_addon/`](express_addon/) uploads a design, generates opt
 
 <img src="docs/readme/addon.jpg" width="420" alt="Express add-on panel">
 
+The viewer and add-on need the service's extra packages and Node.js. From the repository root, install them and start the service:
+
+```bash
+.venv/bin/pip install -r requirements-dev.txt
+```
+
 ```bash
 .venv/bin/uvicorn service.app:app --port 8765
 ```
+
+Then, in a second terminal, start the add-on:
 
 ```bash
 npm --prefix express_addon install
@@ -196,7 +210,7 @@ Then open http://127.0.0.1:5241, or sideload `express_addon/dist` using Adobe's 
 
 ### Web viewer
 
-Pick a sample or upload a design, choose sizes and generate. Each result can be compared with the original and a plain stretch, and downloaded as PNG or JSON. After `npm --prefix viewer install` and `npm --prefix viewer run build`, the service above serves it at http://127.0.0.1:8765.
+Pick a sample or upload a design, choose sizes and generate. Each result can be compared with the original and a plain stretch, and downloaded as PNG or JSON. After `npm --prefix viewer install` and `npm --prefix viewer run build`, the service above serves it at http://127.0.0.1:8765. Restart the service if it was already running.
 
 <img src="docs/readme/viewer.jpg" width="760" alt="Web viewer">
 
@@ -209,7 +223,7 @@ Every model is small, runs on CPU and ships with the repository, so nothing is d
 | Layout transformer | `engine/models/retarget.npz` (8.7 MB) | Proposes layouts; we trained it on Crello designs |
 | Judge | `final/weights.json` | Linear model fitted on human votes; picks the final layout |
 | Role classifier and layout library | `engine/models/roles*.json`, `engine/models/layouts*.json` | Identify what each element is and suggest arrangements |
-| Second engine's role model | `vendor/gaurav/engine/models/roles.npz` | Used by Gaurav's strategies; `FINAL_GAURAV=0` turns them off |
+| Second engine's role model | `vendor/gaurav/engine/models/roles.npz` | Used by the strategy-based layout algorithm; `FINAL_GAURAV=0` turns it off |
 
 Python dependencies are in [`requirements.txt`](requirements.txt): Pillow, the official `cr-renderer`, OR-Tools, SciPy and jsonschema. The renderer's system libraries are installed by the [`Dockerfile`](Dockerfile).
 
@@ -221,6 +235,16 @@ Python dependencies are in [`requirements.txt`](requirements.txt): Pillow, the o
 - **Hairlines on extreme canvases:** thin rules that keep their proportions can fall under 1 px, which accounts for 9 of the 10 structural misses on unseen designs.
 - **Run-to-run variation:** refinement works within a time budget, so results can differ slightly between runs.
 
+## Team and credits
+
+| Member | Contribution |
+|:---|:---|
+| **Gaurav Shrivastava** ([@GauravS11112003](https://github.com/GauravS11112003)) | Built the strategy-based layout algorithm that competes on every task, and judged on the voting panel. It lives in [`vendor/gaurav/`](vendor/gaurav/), copied from his [AdobeHackathon repository](https://github.com/GauravS11112003/AdobeHackathon) (private) at commit `4d76410`. |
+| **Pranay Joshi** ([@pranayjoshi](https://github.com/pranayjoshi)) | Built the layout pipeline, final engine, service, viewer and add-on, and judged on the voting panel. |
+| **Kavya Gupta** | Judged on the voting panel. |
+
+This repository's commit history shows only the work done here. Gaurav's development history is in his own repository.
+
 ## Repository map
 
 | Path | What it holds |
@@ -228,12 +252,14 @@ Python dependencies are in [`requirements.txt`](requirements.txt): Pillow, the o
 | [`final/`](final/) | The submission engine: repair, gate and judge ([details](final/README.md)) |
 | `engine/` | Our layout pipeline, checks and the starter's runner |
 | `merged/` | Floor plans and growth rules |
-| `vendor/gaurav/` | A second engine, used as a source of layouts (`FINAL_GAURAV=0` turns it off) |
+| `vendor/gaurav/` | Gaurav Shrivastava's strategy-based layout algorithm, a source of layouts (`FINAL_GAURAV=0` turns it off) |
 | `renderer/` | The official renderer |
 | `service/`, `viewer/`, `express_addon/` | API, web viewer and add-on |
 | `tools/`, `evaluation/`, `training/`, `tests/` | Judging tools, benchmarks, model training and tests |
 
 More detail is in the [developer guide](docs/developer-guide.md).
+
+To run the tests, install `requirements-dev.txt` as above, then:
 
 ```bash
 .venv/bin/python -m unittest discover -s tests
