@@ -109,7 +109,7 @@ The engine never refuses a task. If everything fails, the least bad layout comes
 
 The two pass rates match, which is the check we care about most: there is no sign of overfitting. These checks are our own copy of the published rules, not the official scorer.
 
-### Our best results
+### Sample results
 
 Twelve favourites, hand-picked by us from the layouts people voted best on designs held out from fitting. Each one also passed every structural check with no text lost. They show the engine at its best, so the numbers above are the fairer measure of a typical result.
 
@@ -237,13 +237,9 @@ Python dependencies are in [`requirements.txt`](requirements.txt): Pillow, the o
 
 ## Team and credits
 
-| Member | Contribution |
-|:---|:---|
-| **Gaurav Shrivastava** ([@GauravS11112003](https://github.com/GauravS11112003)) | Built the strategy-based layout algorithm that competes on every task, and judged on the voting panel. It lives in [`vendor/gaurav/`](vendor/gaurav/), copied from his [AdobeHackathon repository](https://github.com/GauravS11112003/AdobeHackathon) (private) at commit `4d76410`. |
-| **Pranay Joshi** ([@pranayjoshi](https://github.com/pranayjoshi)) | Built the layout pipeline, final engine, service, viewer and add-on, and judged on the voting panel. |
-| **Kavya Gupta** | Judged on the voting panel. |
+Team Roll Tide: Gaurav Shrivastava, Pranay Joshi and Kavya Gupta.
 
-This repository's commit history shows only the work done here. Gaurav's development history is in his own repository.
+The strategy-based layout algorithm in [`vendor/gaurav/`](vendor/gaurav/) is Gaurav's work, copied from his [AdobeHackathon repository](https://github.com/GauravS11112003/AdobeHackathon) (private) at commit `4d76410`, so its development history is there rather than here.
 
 ## Repository map
 
