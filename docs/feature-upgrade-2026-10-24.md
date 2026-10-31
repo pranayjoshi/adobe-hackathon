@@ -1,6 +1,6 @@
 # Engine and product upgrade — October 24, 2026
 
-This upgrade implements independent counterparts to the competitor capabilities reviewed in this chat. Repository presence and feature coverage do not establish equivalent visual quality; that requires a shared held-out evaluation and blind review.
+This upgrade implements independent counterparts to capabilities seen in other engines. Repository presence and feature coverage do not establish equivalent visual quality; that requires a shared held-out evaluation and blind review.
 
 | Capability | Implementation | State |
 |---|---|---|

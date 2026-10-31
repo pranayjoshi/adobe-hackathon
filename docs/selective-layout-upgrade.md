@@ -1,6 +1,6 @@
 # Selective grouping and layout quality
 
-Implemented 2026-10-24, following a review of the local Gaurav competitor checkout. This is a new implementation within our engine, not a replacement with the competitor's code.
+Implemented 2026-10-24, following a review of Gaurav's engine. This is a new implementation within our engine, not a replacement with his code.
 
 ## Behavior
 
@@ -16,7 +16,7 @@ Implemented 2026-10-24, following a review of the local Gaurav competitor checko
 
 The native invoice from the reported screenshot is no longer collapsed into an 18-element rigid block. Its extreme 1600×400 output still cannot be claimed as a successful redesign. The source uses a portrait raster background; preserving its proportions and keeping all layers inside the canvas leaves unused space. The invoice also needs richer table and region relationships for a true wide document layout. The engine explicitly marks the remaining unreadable output as needing review. No pixels, fonts or words are replaced to conceal that limitation.
 
-The columns are general reading-order proposals, not a table reconstruction algorithm. Flat-image detection is deliberately conservative. These engineering gates and scores have not been calibrated against human preferences. The competitor's published Crello benchmarks substitute assets/fonts, so they are not reported as a direct comparison against this original-resource collection.
+The columns are general reading-order proposals, not a table reconstruction algorithm. Flat-image detection is deliberately conservative. These engineering gates and scores have not been calibrated against human preferences. Gaurav's published Crello benchmarks substitute assets/fonts, so they are not reported as a direct comparison against this original-resource collection.
 
 ## Evidence
 

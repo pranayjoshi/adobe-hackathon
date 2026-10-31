@@ -19,7 +19,7 @@ Open **http://127.0.0.1:8765**. For frontend development, `npm --prefix viewer r
 The viewer runs the final engine: pick a sample or upload JSON, choose sizes, compare results and download PNG or JSON. The service API keeps the older options (`options`, `locks`, saved history) for scripts and evaluation.
 
 
-Implementation scope, visual experiments and limitations are recorded in [the Codex execution report](individual-update-plans/22-codex-execution-report.md). Human feedback can be exported with `python -m tools.export_preferences --out output/human-preferences/labels.jsonl`; saving feedback does not automatically train or deploy a model.
+Human feedback can be exported with `python -m tools.export_preferences --out output/human-preferences/labels.jsonl`; saving feedback does not automatically train or deploy a model.
 
 
 
